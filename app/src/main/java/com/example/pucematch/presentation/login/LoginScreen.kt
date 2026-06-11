@@ -87,7 +87,6 @@ fun LoginScreenStateless(
     Scaffold(
         modifier = Modifier
             .fillMaxSize()
-            .safeDrawingPadding() // Edge-to-Edge obligatorio
     ) { paddingValues ->
         Box(
             modifier = Modifier

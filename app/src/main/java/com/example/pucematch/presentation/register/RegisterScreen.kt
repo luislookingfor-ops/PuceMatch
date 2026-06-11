@@ -11,7 +11,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
@@ -151,7 +151,6 @@ fun RegisterScreenStateless(
     Scaffold(
         modifier = Modifier
             .fillMaxSize()
-            .safeDrawingPadding() // Edge-to-Edge obligatorio
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -260,7 +259,7 @@ fun RegisterScreenStateless(
                             onValueChange = onSemesterChange,
                             label = { Text("Semestre (1-12)") },
                             leadingIcon = {
-                                Icon(Icons.Default.School, contentDescription = null)
+                                Icon(Icons.Default.Star, contentDescription = null)
                             },
                             isError = isSemesterError,
                             supportingText = {
@@ -285,7 +284,7 @@ fun RegisterScreenStateless(
                             onValueChange = onCareerChange,
                             label = { Text("Carrera") },
                             leadingIcon = {
-                                Icon(Icons.Default.School, contentDescription = null) // Reutilizamos School
+                                Icon(Icons.Default.Star, contentDescription = null)
                             },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(
