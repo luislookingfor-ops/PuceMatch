@@ -18,7 +18,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.ViewCarousel
+
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -135,7 +135,7 @@ fun HomeScreenStateless(
                 actions = {
                     IconButton(onClick = { isSwipeViewMode = !isSwipeViewMode }) {
                         Icon(
-                            imageVector = if (isSwipeViewMode) Icons.AutoMirrored.Filled.List else Icons.Default.ViewCarousel,
+                            imageVector = if (isSwipeViewMode) Icons.AutoMirrored.Filled.List else Icons.Default.Favorite,
                             contentDescription = if (isSwipeViewMode) "Modo Lista" else "Modo Carrusel/Swipe"
                         )
                     }
@@ -323,7 +323,6 @@ fun HomeScreenStateless(
             } else {
                 // Modo Lista (Fase 1: LazyColumn obligatoria para validar comportamiento perezoso y smart skipping)
                 LazyColumn(
-                    contentPadding = paddingValues,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(16.dp),

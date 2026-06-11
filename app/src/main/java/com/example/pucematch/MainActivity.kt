@@ -5,9 +5,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -23,6 +20,8 @@ import com.example.pucematch.ui.theme.PuceMatchTheme
 /**
  * Activity principal de PuceMatch.
  * Configura el NavHost con rutas @Serializable fuertemente tipadas.
+ * NO usa Scaffold propio — cada pantalla maneja su propio Scaffold
+ * para evitar doble padding con enableEdgeToEdge().
  */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -32,35 +31,32 @@ class MainActivity : ComponentActivity() {
             PuceMatchTheme {
                 val navController = rememberNavController()
 
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    NavHost(
-                        navController = navController,
-                        startDestination = Screen.Login,
-                        modifier = Modifier.padding(innerPadding)
-                    ) {
-                        composable<Screen.Login> {
-                            LoginScreenStateful(navController = navController)
-                        }
+                NavHost(
+                    navController = navController,
+                    startDestination = Screen.Login,
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    composable<Screen.Login> {
+                        LoginScreenStateful(navController = navController)
+                    }
 
-                        composable<Screen.Register> {
-                            RegisterScreenStateful(navController = navController)
-                        }
+                    composable<Screen.Register> {
+                        RegisterScreenStateful(navController = navController)
+                    }
 
-                        composable<Screen.Home> {
-                            HomeScreenStateful(navController = navController)
-                        }
+                    composable<Screen.Home> {
+                        HomeScreenStateful(navController = navController)
+                    }
 
-                        composable<Screen.ChatDetail> { backStackEntry ->
-                            val chatDetail: Screen.ChatDetail = backStackEntry.toRoute()
-                            ChatDetailScreenStateful(
-                                navController = navController,
-                                matchId = chatDetail.matchId
-                            )
-                        }
+                    composable<Screen.ChatDetail> { backStackEntry ->
+                        val chatDetail: Screen.ChatDetail = backStackEntry.toRoute()
+                        ChatDetailScreenStateful(
+                            navController = navController,
+                            matchId = chatDetail.matchId
+                        )
                     }
                 }
             }
         }
     }
 }
-

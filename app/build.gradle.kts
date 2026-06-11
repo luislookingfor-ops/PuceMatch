@@ -40,13 +40,15 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
 
+    // Compose BOM (gestiona todas las versiones de Compose)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.material3)
-    implementation("androidx.compose.material:material-icons-core:1.7.8")
-    implementation("androidx.compose.material:material-icons-extended:1.7.8")
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
+
+    // Material Icons — solo core (extended es demasiado pesado para compilación)
+    implementation("androidx.compose.material:material-icons-core")
 
     // Navigation Compose (tipada con @Serializable)
     implementation(libs.androidx.navigation.compose)
