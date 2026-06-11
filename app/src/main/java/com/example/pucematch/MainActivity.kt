@@ -16,6 +16,8 @@ import androidx.navigation.toRoute
 import com.example.pucematch.domain.Screen
 import com.example.pucematch.presentation.chat.ChatDetailScreenStateful
 import com.example.pucematch.presentation.home.HomeScreenStateful
+import com.example.pucematch.presentation.login.LoginScreenStateful
+import com.example.pucematch.presentation.register.RegisterScreenStateful
 import com.example.pucematch.ui.theme.PuceMatchTheme
 
 /**
@@ -33,15 +35,15 @@ class MainActivity : ComponentActivity() {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     NavHost(
                         navController = navController,
-                        startDestination = Screen.Home,
+                        startDestination = Screen.Login,
                         modifier = Modifier.padding(innerPadding)
                     ) {
                         composable<Screen.Login> {
-                            Text("PuceMatch — Login")
+                            LoginScreenStateful(navController = navController)
                         }
 
                         composable<Screen.Register> {
-                            Text("PuceMatch — Registro")
+                            RegisterScreenStateful(navController = navController)
                         }
 
                         composable<Screen.Home> {
@@ -61,3 +63,4 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
