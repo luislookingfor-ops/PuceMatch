@@ -14,6 +14,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.example.pucematch.domain.Screen
+import com.example.pucematch.presentation.chat.ChatDetailScreenStateful
+import com.example.pucematch.presentation.home.HomeScreenStateful
 import com.example.pucematch.ui.theme.PuceMatchTheme
 
 /**
@@ -31,28 +33,27 @@ class MainActivity : ComponentActivity() {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     NavHost(
                         navController = navController,
-                        startDestination = Screen.Login,
+                        startDestination = Screen.Home,
                         modifier = Modifier.padding(innerPadding)
                     ) {
                         composable<Screen.Login> {
-                            // TODO: Fase 2 — Implementar LoginScreen
                             Text("PuceMatch — Login")
                         }
 
                         composable<Screen.Register> {
-                            // TODO: Fase 2 — Implementar RegisterScreen
                             Text("PuceMatch — Registro")
                         }
 
                         composable<Screen.Home> {
-                            // TODO: Fase 2 — Implementar HomeScreen
-                            Text("PuceMatch — Home")
+                            HomeScreenStateful(navController = navController)
                         }
 
                         composable<Screen.ChatDetail> { backStackEntry ->
                             val chatDetail: Screen.ChatDetail = backStackEntry.toRoute()
-                            // TODO: Fase 2 — Implementar ChatDetailScreen
-                            Text("PuceMatch — Chat: ${chatDetail.matchId}")
+                            ChatDetailScreenStateful(
+                                navController = navController,
+                                matchId = chatDetail.matchId
+                            )
                         }
                     }
                 }
