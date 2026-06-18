@@ -18,48 +18,47 @@ import kotlinx.coroutines.launch
 
 /**
  * ViewModel para la pantalla de Home.
- * Gestiona de forma reactiva (UDF) el catálogo de estudiantes filtrado por grupos de match,
- * el historial de swipes del usuario para evitar pérdida de estado y la creación manual de perfiles.
+ * Gestiona el catálogo de perfiles segmentado por categorías y procesa los likes reales en el servidor.
  */
 class HomeViewModel(
     private val savedStateHandle: SavedStateHandle,
-    private val repository: PuceMatchRepository
+    private val repository: PuceMatchRepository,
+    val currentUserId: String
 ) : ViewModel() {
 
     private val isSwipeViewModeKey = "is_swipe_view_mode"
     private val activeTabKey = "active_tab"
     private val swipedProfileIdsKey = "swiped_profile_ids"
 
-    // Estados de configuración de vista y filtrado guardados en SavedStateHandle
     val isSwipeViewMode = savedStateHandle.getStateFlow(isSwipeViewModeKey, true)
-    val activeTab = savedStateHandle.getStateFlow(activeTabKey, "Educativo") // "Educativo", "Recreacional", "Sentimental"
+    val activeTab = savedStateHandle.getStateFlow(activeTabKey, "Educativo")
     val swipedProfileIds = savedStateHandle.getStateFlow<List<String>>(swipedProfileIdsKey, emptyList())
 
-    // Estado de carga de red
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing
 
-    // Flujo global de todos los perfiles de la base de datos local (Room)
+    // Todos los perfiles en la base de datos local (excluyendo el perfil del usuario actual)
     val allProfiles: StateFlow<List<StudentEntity>> = repository.getProfiles()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Perfiles filtrados por la pestaña (grupo de match) activa
+    // Perfiles filtrados por tipo de match (excluyendo a uno mismo)
     val filteredProfiles: StateFlow<List<StudentEntity>> = combine(allProfiles, activeTab) { profiles, tab ->
-        profiles.filter { it.matchType.equals(tab, ignoreCase = true) }
+        profiles.filter { 
+            it.matchType.equals(tab, ignoreCase = true) && it.id != currentUserId 
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Perfiles filtrados de la pestaña activa que NO han sido deslizados en esta sesión (para el modo Swipe)
+    // Perfiles listos para deslizar en la pestaña activa
     val swipeCardProfiles: StateFlow<List<StudentEntity>> = combine(filteredProfiles, swipedProfileIds) { profiles, swipedIds ->
         profiles.filter { it.id !in swipedIds }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Matches activos (estudiantes con los que ya se tiene coincidencia mutua)
+    // Matches activos (donde ya hay coincidencia mutua)
     val activeMatches: StateFlow<List<StudentEntity>> = allProfiles.combine(allProfiles) { profiles, _ ->
-        profiles.filter { it.isMatched }
+        profiles.filter { it.isMatched && it.id != currentUserId }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
-        // Al iniciar, refrescar automáticamente del servidor Retrofit de forma asíncrona
         refreshCatalog()
     }
 
@@ -79,22 +78,29 @@ class HomeViewModel(
         savedStateHandle[activeTabKey] = tab
     }
 
-    fun swipeRight(student: StudentEntity) {
-        // Agregar al historial de deslizados
+    /**
+     * Envía un like al servidor remoto. Invoca un callback con el resultado
+     * para disparar el diálogo flotante en la UI si se concreta una coincidencia mutua.
+     */
+    fun swipeRight(student: StudentEntity, onMatchResult: (Boolean, String?) -> Unit) {
         val currentSwiped = swipedProfileIds.value.toMutableList()
         if (student.id !in currentSwiped) {
             currentSwiped.add(student.id)
             savedStateHandle[swipedProfileIdsKey] = currentSwiped
         }
-        
-        // Simular match mutuo actualizando la base de datos local
+
         viewModelScope.launch {
-            repository.updateMatchStatus(student.id, true)
+            val result = repository.likeProfile(likerId = currentUserId, likedId = student.id)
+            result.onSuccess { matchResponse ->
+                onMatchResult(matchResponse.isMatch, matchResponse.matchId)
+            }.onFailure {
+                // Si la red falla (Offline), reportamos que no hay match inmediato.
+                onMatchResult(false, null)
+            }
         }
     }
 
     fun swipeLeft(studentId: String) {
-        // Agregar al historial de deslizados
         val currentSwiped = swipedProfileIds.value.toMutableList()
         if (studentId !in currentSwiped) {
             currentSwiped.add(studentId)
@@ -106,37 +112,11 @@ class HomeViewModel(
         savedStateHandle[swipedProfileIdsKey] = emptyList<String>()
     }
 
-    /**
-     * Permite la creación manual de perfiles de estudiantes locales en caliente.
-     */
-    fun addManualProfile(
-        name: String,
-        career: String,
-        interests: String,
-        bio: String,
-        matchType: String,
-        avatarUri: String?
-    ) {
-        viewModelScope.launch {
-            val newProfile = StudentEntity(
-                id = java.util.UUID.randomUUID().toString(),
-                name = name,
-                career = career,
-                interests = interests,
-                bio = bio,
-                avatarUri = avatarUri,
-                matchType = matchType,
-                isMatched = false
-            )
-            repository.insertProfile(newProfile)
-        }
-    }
-
     companion object {
-        fun provideFactory(repository: PuceMatchRepository): ViewModelProvider.Factory = viewModelFactory {
+        fun provideFactory(repository: PuceMatchRepository, currentUserId: String): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val savedStateHandle = this.createSavedStateHandle()
-                HomeViewModel(savedStateHandle, repository)
+                HomeViewModel(savedStateHandle, repository, currentUserId)
             }
         }
     }

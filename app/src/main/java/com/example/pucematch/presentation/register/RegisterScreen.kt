@@ -92,7 +92,8 @@ fun RegisterScreenStateful(navController: NavController) {
         onAvatarChange = { viewModel.onAvatarChange(it) },
         onMatchTypeChange = { viewModel.onMatchTypeChange(it) },
         onRegisterClick = {
-            viewModel.registerUser {
+            viewModel.registerUser { userId ->
+                app.saveCurrentUserId(userId)
                 navController.navigate(Screen.Home) {
                     popUpTo(Screen.Login) { inclusive = true }
                 }

@@ -20,15 +20,15 @@ import kotlinx.coroutines.launch
 
 /**
  * ViewModel para la pantalla de detalle de chat.
- * Realiza la defensa y verificación de match activo antes de chatear,
- * y controla la mensajería y las respuestas simuladas del bot.
+ * Valida la existencia de match y descarga/sintoniza mensajes reales del servidor.
  */
 class ChatDetailViewModel(
     private val savedStateHandle: SavedStateHandle,
-    private val repository: PuceMatchRepository
+    private val repository: PuceMatchRepository,
+    val currentUserId: String
 ) : ViewModel() {
 
-    // Extraer matchId inyectado automáticamente por Navigation Compose
+    // Extraer matchId inyectado automáticamente por la navegación
     val matchId: String = savedStateHandle.get<String>("matchId") ?: ""
 
     private val inputTextKey = "input_text"
@@ -37,28 +37,31 @@ class ChatDetailViewModel(
     private val _isTyping = MutableStateFlow(false)
     val isTyping: StateFlow<Boolean> = _isTyping
 
-    // Historial de mensajes reactivo desde base de datos local (Room)
+    // Historial de mensajes reactivo desde Room local
     val messages: StateFlow<List<MessageEntity>> = repository.getMessages(matchId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Estudiante asociado al chat
+    // Perfil del otro estudiante
     val matchedStudent: StateFlow<StudentEntity?> = repository.getProfiles()
         .map { profiles -> profiles.find { it.id == matchId } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    // Defensa: verifica si el chat está desbloqueado por un match mutuo
+    // Defensa: requiere match activo
     val hasMatchRight: StateFlow<Boolean> = matchedStudent.map { it?.isMatched == true }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    // Respuestas automáticas simuladas para dinamizar el chat
-    private val botReplies = listOf(
-        "¡Excelente! Deberíamos reunirnos en la biblioteca de la PUCE esta semana.",
-        "Genial. Precisamente estoy libre los martes y jueves por la tarde para avanzar.",
-        "Totalmente de acuerdo. PuceMatch me está pareciendo súper útil para esto.",
-        "¡Qué bien! Te paso mi número de WhatsApp por interno si gustas.",
-        "Buenísimo, nos organizamos entonces."
-    )
-    private var replyIndex = 0
+    init {
+        // Sondeo (polling) cada 3 segundos para sincronizar mensajes en tiempo real entre celulares
+        viewModelScope.launch {
+            while (true) {
+                // Solo realizamos la petición si ya hay match mutuo activo
+                if (hasMatchRight.value) {
+                    repository.refreshMessages(matchId, currentUserId)
+                }
+                delay(3000)
+            }
+        }
+    }
 
     fun onInputTextChange(text: String) {
         savedStateHandle[inputTextKey] = text
@@ -68,39 +71,20 @@ class ChatDetailViewModel(
         val content = inputText.value
         if (content.isBlank() || !hasMatchRight.value) return
 
-        // Limpiar el input
+        // Limpiar el input de inmediato
         savedStateHandle[inputTextKey] = ""
 
         viewModelScope.launch {
-            // 1. Guardar mensaje localmente y subir a Retrofit
-            repository.sendMessage(matchId, "me", content)
-
-            // 2. Simular escritura y respuesta del bot
-            delay(800)
-            _isTyping.value = true
-            delay(1500)
-            _isTyping.value = false
-
-            val replyText = botReplies[replyIndex % botReplies.size]
-            replyIndex++
-
-            val sdf = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault())
-            val replyMessage = MessageEntity(
-                id = java.util.UUID.randomUUID().toString(),
-                matchId = matchId,
-                text = replyText,
-                isFromMe = false,
-                timestamp = sdf.format(java.util.Date())
-            )
-            repository.insertMessage(replyMessage)
+            // Guardar localmente y subir a la red usando el ID de usuario real
+            repository.sendMessage(matchId, currentUserId, content)
         }
     }
 
     companion object {
-        fun provideFactory(repository: PuceMatchRepository): ViewModelProvider.Factory = viewModelFactory {
+        fun provideFactory(repository: PuceMatchRepository, currentUserId: String): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val savedStateHandle = this.createSavedStateHandle()
-                ChatDetailViewModel(savedStateHandle, repository)
+                ChatDetailViewModel(savedStateHandle, repository, currentUserId)
             }
         }
     }
