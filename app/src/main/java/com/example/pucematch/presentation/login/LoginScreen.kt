@@ -28,34 +28,33 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.pucematch.domain.Screen
 
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.pucematch.PuceMatchApplication
+
 @Composable
 fun LoginScreenStateful(navController: NavController) {
-    var email by rememberSaveable { mutableStateOf("") }
-    var password by rememberSaveable { mutableStateOf("") }
-    var isEmailError by rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current
+    val app = context.applicationContext as PuceMatchApplication
+    val viewModel: LoginViewModel = viewModel(
+        factory = LoginViewModel.provideFactory(app.repository)
+    )
+
+    val email by viewModel.email.collectAsState()
+    val password by viewModel.password.collectAsState()
+    val isEmailError by viewModel.isEmailError.collectAsState()
 
     LoginScreenStateless(
         email = email,
         password = password,
         isEmailError = isEmailError,
-        onEmailChange = { input ->
-            email = input
-            isEmailError = !input.endsWith("@puce.edu.ec")
-        },
-        onPasswordChange = { input ->
-            password = input
-        },
+        onEmailChange = { viewModel.onEmailChange(it) },
+        onPasswordChange = { viewModel.onPasswordChange(it) },
         onLoginClick = {
-            val isEmailValid = email.endsWith("@puce.edu.ec") && email.isNotEmpty()
-            val isPasswordValid = password.isNotEmpty()
-
-            if (isEmailValid && isPasswordValid) {
-                // Navegar a Home
+            viewModel.validateAndLogin {
                 navController.navigate(Screen.Home) {
                     popUpTo(Screen.Login) { inclusive = true }
                 }
-            } else {
-                isEmailError = !isEmailValid
             }
         },
         onNavigateToRegister = {

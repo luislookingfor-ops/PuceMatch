@@ -1,9 +1,17 @@
 package com.example.pucematch.presentation.home
 
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
@@ -14,11 +22,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Star
-
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -28,76 +36,55 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.pucematch.data.local.AppDatabase
+import com.example.pucematch.PuceMatchApplication
 import com.example.pucematch.data.local.StudentEntity
 import com.example.pucematch.domain.Screen
+import com.example.pucematch.ui.utils.copyUriToInternalStorage
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 @Composable
 fun HomeScreenStateful(navController: NavController, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val database = remember { AppDatabase.getDatabase(context) }
-    val profiles by database.userDao().getAllProfiles().collectAsState(initial = emptyList())
-    val coroutineScope = rememberCoroutineScope()
+    val app = context.applicationContext as PuceMatchApplication
+    val viewModel: HomeViewModel = viewModel(
+        factory = HomeViewModel.provideFactory(app.repository)
+    )
 
-    // Semilla de perfiles por defecto si la base de datos está vacía
-    LaunchedEffect(profiles) {
-        if (profiles.isEmpty()) {
-            val seedProfiles = listOf(
-                StudentEntity(
-                    id = "1",
-                    name = "Yulieth Galarza",
-                    career = "Ingeniería en Software",
-                    interests = "Kotlin,Jetpack Compose,UI Design,Android,Material Design 3",
-                    bio = "Desarrolladora de UI interactiva. Me encanta crear interfaces fluidas y componentes optimizados."
-                ),
-                StudentEntity(
-                    id = "2",
-                    name = "Jorge López",
-                    career = "Ingeniería en Software",
-                    interests = "Room,Clean Architecture,SQL,Kotlin,Coroutines",
-                    bio = "Enfocado en base de datos locales e infraestructura robusta. Offline-first lover."
-                ),
-                StudentEntity(
-                    id = "3",
-                    name = "Kevin Cevallos",
-                    career = "Ingeniería en Sistemas",
-                    interests = "Retrofit,APIs,Git,Backend Integration,Testing",
-                    bio = "Especialista en integración remota y consumo de servicios HTTP fiables."
-                ),
-                StudentEntity(
-                    id = "4",
-                    name = "María Belén",
-                    career = "Diseño Multimedios",
-                    interests = "Figma,UX Research,Branding,Illustrator,Visual Design",
-                    bio = "Diseñadora de interfaces digitales buscando crear la mejor experiencia estudiantil."
-                ),
-                StudentEntity(
-                    id = "5",
-                    name = "Daniel Proaño",
-                    career = "Negocios Internacionales",
-                    interests = "Marketing,Finanzas,Liderazgo,Idiomas,Tech Startups",
-                    bio = "Emprendedor tecnológico. Me interesa el ecosistema de apps móviles y negocios."
-                )
-            )
-            coroutineScope.launch {
-                database.userDao().insertProfiles(seedProfiles)
-            }
-        }
-    }
+    val isSwipeViewMode by viewModel.isSwipeViewMode.collectAsState()
+    val activeTab by viewModel.activeTab.collectAsState()
+    val filteredProfiles by viewModel.filteredProfiles.collectAsState()
+    val swipeCardProfiles by viewModel.swipeCardProfiles.collectAsState()
+    val activeMatches by viewModel.activeMatches.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
 
     HomeScreenStateless(
-        profiles = profiles,
+        isSwipeViewMode = isSwipeViewMode,
+        activeTab = activeTab,
+        filteredProfiles = filteredProfiles,
+        swipeCardProfiles = swipeCardProfiles,
+        activeMatches = activeMatches,
+        isRefreshing = isRefreshing,
+        onSwipeViewModeToggle = { viewModel.setSwipeViewMode(!isSwipeViewMode) },
+        onTabSelect = { viewModel.setActiveTab(it) },
+        onSwipeLeft = { student -> viewModel.swipeLeft(student.id) },
+        onSwipeRight = { student -> viewModel.swipeRight(student) },
+        onReloadClick = { viewModel.resetSwipes() },
+        onAddProfile = { name, career, interests, bio, matchType, avatarUri ->
+            viewModel.addManualProfile(name, career, interests, bio, matchType, avatarUri)
+        },
         onNavigateToChat = { matchId ->
             navController.navigate(Screen.ChatDetail(matchId))
         },
@@ -108,20 +95,28 @@ fun HomeScreenStateful(navController: NavController, modifier: Modifier = Modifi
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreenStateless(
-    profiles: List<StudentEntity>,
+    isSwipeViewMode: Boolean,
+    activeTab: String,
+    filteredProfiles: List<StudentEntity>,
+    swipeCardProfiles: List<StudentEntity>,
+    activeMatches: List<StudentEntity>,
+    isRefreshing: Boolean,
+    onSwipeViewModeToggle: () -> Unit,
+    onTabSelect: (String) -> Unit,
+    onSwipeLeft: (StudentEntity) -> Unit,
+    onSwipeRight: (StudentEntity) -> Unit,
+    onReloadClick: () -> Unit,
+    onAddProfile: (String, String, String, String, String, String?) -> Unit,
     onNavigateToChat: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var isSwipeViewMode by rememberSaveable { mutableStateOf(true) }
-    
-    // Lista local de perfiles para manejar el Swipe a nivel de interfaz de usuario
-    val activeProfiles = remember(profiles) { mutableStateListOf<StudentEntity>().apply { addAll(profiles) } }
-    val swipedHistory = remember { mutableStateListOf<StudentEntity>() }
-    
-    val currentTopProfile = activeProfiles.lastOrNull()
+    var showCreateDialog by remember { mutableStateOf(false) }
+    var matchDialogProfile by remember { mutableStateOf<StudentEntity?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
@@ -133,7 +128,7 @@ fun HomeScreenStateless(
                     )
                 },
                 actions = {
-                    IconButton(onClick = { isSwipeViewMode = !isSwipeViewMode }) {
+                    IconButton(onClick = onSwipeViewModeToggle) {
                         Icon(
                             imageVector = if (isSwipeViewMode) Icons.AutoMirrored.Filled.List else Icons.Default.Favorite,
                             contentDescription = if (isSwipeViewMode) "Modo Lista" else "Modo Carrusel/Swipe"
@@ -145,215 +140,377 @@ fun HomeScreenStateless(
                 )
             )
         },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { showCreateDialog = true },
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Crear Perfil Manualmente")
+            }
+        },
         modifier = modifier.fillMaxSize()
     ) { paddingValues ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            if (isSwipeViewMode) {
-                // Modo Swipe Cards (Tinder Style)
-                if (activeProfiles.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxSize().padding(24.dp),
-                        contentAlignment = Alignment.Center
+            // 1. Selector de Pestañas de Match (Material You Tabs)
+            TabRow(
+                selectedTabIndex = listOf("Educativo", "Recreacional", "Sentimental").indexOf(activeTab),
+                containerColor = MaterialTheme.colorScheme.background,
+                contentColor = MaterialTheme.colorScheme.primary
+            ) {
+                listOf("Educativo", "Recreacional", "Sentimental").forEach { tab ->
+                    Tab(
+                        selected = activeTab == tab,
+                        onClick = { onTabSelect(tab) },
+                        text = { Text(tab, fontWeight = FontWeight.Bold) }
+                    )
+                }
+            }
+
+            // 2. Carrusel Horizontal de Matches Activos (Tinder Gold Style)
+            if (activeMatches.isNotEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp, start = 16.dp, end = 16.dp)
+                ) {
+                    Text(
+                        text = "Matches Activos (${activeMatches.size})",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = "¡Has visto todos los perfiles!",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onBackground
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "Regresa más tarde para encontrar nuevos compañeros de estudio.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Button(
-                                onClick = {
-                                    activeProfiles.addAll(profiles)
-                                    swipedHistory.clear()
-                                }
+                        items(activeMatches, key = { it.id }) { match ->
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .clickable { onNavigateToChat(match.id) }
+                                    .padding(vertical = 4.dp)
                             ) {
-                                Text("Recargar catálogo")
+                                Box(
+                                    modifier = Modifier
+                                        .size(56.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.secondaryContainer)
+                                        .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (match.avatarUri != null) {
+                                        val bitmap = remember(match.avatarUri) {
+                                            try {
+                                                BitmapFactory.decodeFile(match.avatarUri)
+                                            } catch (e: Exception) {
+                                                null
+                                            }
+                                        }
+                                        if (bitmap != null) {
+                                            Image(
+                                                bitmap = bitmap.asImageBitmap(),
+                                                contentDescription = match.name,
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentScale = ContentScale.Crop
+                                            )
+                                        } else {
+                                            Text(
+                                                text = match.name.take(2).uppercase(),
+                                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    } else {
+                                        Text(
+                                            text = match.name.take(2).uppercase(),
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = match.name.split(" ").firstOrNull() ?: "",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 1,
+                                    fontSize = 10.sp
+                                )
                             }
                         }
                     }
-                } else {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        // El Stack de Tarjetas usando Box
+                    HorizontalDivider(
+                        modifier = Modifier.padding(top = 12.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant
+                    )
+                }
+            }
+
+            // 3. Contenedor Principal (Swipe vs List)
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) {
+                if (isRefreshing) {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                } else if (isSwipeViewMode) {
+                    // MODO SWIPE CARDS
+                    if (swipeCardProfiles.isEmpty()) {
                         Box(
                             modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth()
-                                .padding(horizontal = 24.dp, vertical = 16.dp),
+                                .fillMaxSize()
+                                .padding(24.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            // Mostrar la tarjeta debajo (background card) para dar profundidad
-                            if (activeProfiles.size > 1) {
-                                val secondProfile = activeProfiles[activeProfiles.lastIndex - 1]
-                                ProfileCard(
-                                    profile = secondProfile,
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(top = 16.dp)
-                                        .graphicsLayer {
-                                            scaleX = 0.93f
-                                            scaleY = 0.93f
-                                            alpha = 0.6f
-                                        },
-                                    isSwipeable = false,
-                                    onSwipeLeft = {},
-                                    onSwipeRight = {},
-                                    onCardClick = {}
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "¡Fin del catálogo en $activeTab!",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onBackground
                                 )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Has visto todos los perfiles de este grupo de interés.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Button(onClick = onReloadClick) {
+                                    Text("Recargar catálogo")
+                                }
+                            }
+                        }
+                    } else {
+                        Column(
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            val currentTopProfile = swipeCardProfiles.lastOrNull()
+
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (swipeCardProfiles.size > 1) {
+                                    val secondProfile = swipeCardProfiles[swipeCardProfiles.lastIndex - 1]
+                                    ProfileCard(
+                                        profile = secondProfile,
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(top = 16.dp)
+                                            .graphicsLayer {
+                                                scaleX = 0.93f
+                                                scaleY = 0.93f
+                                                alpha = 0.6f
+                                            },
+                                        isSwipeable = false,
+                                        onSwipeLeft = {},
+                                        onSwipeRight = {},
+                                        onCardClick = {}
+                                    )
+                                }
+
+                                if (currentTopProfile != null) {
+                                    key(currentTopProfile.id) {
+                                        ProfileCard(
+                                            profile = currentTopProfile,
+                                            modifier = Modifier.fillMaxSize(),
+                                            isSwipeable = true,
+                                            onSwipeLeft = {
+                                                onSwipeLeft(currentTopProfile)
+                                            },
+                                            onSwipeRight = {
+                                                onSwipeRight(currentTopProfile)
+                                                matchDialogProfile = currentTopProfile
+                                            },
+                                            onCardClick = {
+                                                // Check for match before opening chat
+                                                if (currentTopProfile.isMatched) {
+                                                    onNavigateToChat(currentTopProfile.id)
+                                                } else {
+                                                    coroutineScope.launch {
+                                                        snackbarHostState.showSnackbar(
+                                                            "Primero debes deslizar a la derecha y hacer match para chatear."
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        )
+                                    }
+                                }
                             }
 
-                            // La tarjeta superior interactiva
-                            if (currentTopProfile != null) {
-                                key(currentTopProfile.id) {
-                                    ProfileCard(
-                                        profile = currentTopProfile,
-                                        modifier = Modifier.fillMaxSize(),
-                                        isSwipeable = true,
-                                        onSwipeLeft = {
-                                            swipedHistory.add(currentTopProfile)
-                                            activeProfiles.removeAt(activeProfiles.lastIndex)
-                                        },
-                                        onSwipeRight = {
-                                            val profileMatched = currentTopProfile
-                                            swipedHistory.add(profileMatched)
-                                            activeProfiles.removeAt(activeProfiles.lastIndex)
-                                            onNavigateToChat(profileMatched.id)
-                                        },
-                                        onCardClick = {
-                                            onNavigateToChat(currentTopProfile.id)
+                            // Botones inferiores de acción
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 24.dp),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                FilledIconButton(
+                                    onClick = {
+                                        if (currentTopProfile != null) {
+                                            onSwipeLeft(currentTopProfile)
                                         }
+                                    },
+                                    modifier = Modifier.size(64.dp),
+                                    colors = IconButtonDefaults.filledIconButtonColors(
+                                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                                        contentColor = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Descartar",
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                }
+
+                                FilledIconButton(
+                                    onClick = {
+                                        if (currentTopProfile != null) {
+                                            onSwipeRight(currentTopProfile)
+                                            matchDialogProfile = currentTopProfile
+                                        }
+                                    },
+                                    modifier = Modifier.size(64.dp),
+                                    colors = IconButtonDefaults.filledIconButtonColors(
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Favorite,
+                                        contentDescription = "Me gusta",
+                                        modifier = Modifier.size(28.dp)
                                     )
                                 }
                             }
                         }
-
-                        // Botones de acción inferior estilo M3
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 24.dp),
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // Botón de Rechazo (Izquierda)
-                            FilledIconButton(
-                                onClick = {
-                                    if (currentTopProfile != null) {
-                                        swipedHistory.add(currentTopProfile)
-                                        activeProfiles.removeAt(activeProfiles.lastIndex)
-                                    }
-                                },
-                                modifier = Modifier.size(64.dp),
-                                colors = IconButtonDefaults.filledIconButtonColors(
-                                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                                    contentColor = MaterialTheme.colorScheme.onErrorContainer
-                                )
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Descartar",
-                                    modifier = Modifier.size(28.dp)
-                                )
-                            }
-
-                            // Botón de Superlike (Centro)
-                            FilledIconButton(
-                                onClick = {
-                                    if (currentTopProfile != null) {
-                                        val profileMatched = currentTopProfile
-                                        swipedHistory.add(profileMatched)
-                                        activeProfiles.removeAt(activeProfiles.lastIndex)
-                                        onNavigateToChat(profileMatched.id)
-                                    }
-                                },
-                                modifier = Modifier.size(52.dp),
-                                colors = IconButtonDefaults.filledIconButtonColors(
-                                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-                                )
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Star,
-                                    contentDescription = "Superlike",
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-
-                            // Botón de Match / Like (Derecha)
-                            FilledIconButton(
-                                onClick = {
-                                    if (currentTopProfile != null) {
-                                        val profileMatched = currentTopProfile
-                                        swipedHistory.add(profileMatched)
-                                        activeProfiles.removeAt(activeProfiles.lastIndex)
-                                        onNavigateToChat(profileMatched.id)
-                                    }
-                                },
-                                modifier = Modifier.size(64.dp),
-                                colors = IconButtonDefaults.filledIconButtonColors(
-                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Favorite,
-                                    contentDescription = "Me gusta / Chatear",
-                                    modifier = Modifier.size(28.dp)
-                                )
-                            }
-                        }
                     }
-                }
-            } else {
-                // Modo Lista (Fase 1: LazyColumn obligatoria para validar comportamiento perezoso y smart skipping)
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(
-                        items = profiles,
-                        key = { it.id } // Llave obligatoria para optimización de Skipping
-                    ) { profile ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onNavigateToChat(profile.id) },
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant
-                            )
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text(text = profile.name, style = MaterialTheme.typography.titleLarge)
-                                Text(text = profile.career, style = MaterialTheme.typography.bodyMedium)
-                                
-                                Spacer(modifier = Modifier.height(8.dp))
-                                
-                                // LazyRow para renderizar eficientemente las etiquetas de interés
-                                val interestList = profile.interests.split(",")
-                                LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    items(interestList) { interest ->
-                                        SuggestionChip(
-                                            onClick = {}, 
-                                            label = { Text(interest) }
-                                        )
+                } else {
+                    // MODO LISTA
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(
+                            items = filteredProfiles,
+                            key = { it.id }
+                        ) { profile ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        if (profile.isMatched) {
+                                            onNavigateToChat(profile.id)
+                                        } else {
+                                            coroutineScope.launch {
+                                                snackbarHostState.showSnackbar(
+                                                    "Acceso Denegado: Debes hacer match con ${profile.name} en el carrusel."
+                                                )
+                                            }
+                                        }
+                                    },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // Avatar del estudiante
+                                    Box(
+                                        modifier = Modifier
+                                            .size(52.dp)
+                                            .clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (profile.avatarUri != null) {
+                                            val bitmap = remember(profile.avatarUri) {
+                                                try {
+                                                    BitmapFactory.decodeFile(profile.avatarUri)
+                                                } catch (e: Exception) {
+                                                    null
+                                                }
+                                            }
+                                            if (bitmap != null) {
+                                                Image(
+                                                    bitmap = bitmap.asImageBitmap(),
+                                                    contentDescription = null,
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    contentScale = ContentScale.Crop
+                                                )
+                                            } else {
+                                                Text(
+                                                    text = profile.name.take(2).uppercase(),
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        } else {
+                                            Text(
+                                                text = profile.name.take(2).uppercase(),
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.width(16.dp))
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(text = profile.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                        Text(text = profile.career, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        
+                                        // Chips de intereses
+                                        val interestList = profile.interests.split(",")
+                                        LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            items(interestList) { interest ->
+                                                SuggestionChip(
+                                                    onClick = {},
+                                                    label = { Text(interest, fontSize = 10.sp) },
+                                                    colors = SuggestionChipDefaults.suggestionChipColors(
+                                                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
+                                                    )
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    // Indicador de bloqueo/chat (Defensa de Match)
+                                    Box(modifier = Modifier.padding(start = 8.dp)) {
+                                        if (profile.isMatched) {
+                                            Icon(
+                                                imageVector = Icons.Default.Favorite,
+                                                contentDescription = "Match Activo",
+                                                tint = Color(0xFF4CAF50)
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = Icons.Default.Lock,
+                                                contentDescription = "Bloqueado",
+                                                tint = MaterialTheme.colorScheme.outline
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -361,6 +518,96 @@ fun HomeScreenStateless(
                     }
                 }
             }
+        }
+
+        // 4. Modal Diálogo "¡Es un Match!"
+        matchDialogProfile?.let { matchedProfile ->
+            AlertDialog(
+                onDismissRequest = { matchDialogProfile = null },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            matchDialogProfile = null
+                            onNavigateToChat(matchedProfile.id)
+                        }
+                    ) {
+                        Text("Chatear ahora")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { matchDialogProfile = null }) {
+                        Text("Seguir deslizando")
+                    }
+                },
+                title = {
+                    Text(
+                        "¡Es un Match! 🎉",
+                        fontWeight = FontWeight.Black,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                        fontSize = 22.sp
+                    )
+                },
+                text = {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(96.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.secondaryContainer)
+                                .border(3.dp, MaterialTheme.colorScheme.primary, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (matchedProfile.avatarUri != null) {
+                                val bitmap = remember(matchedProfile.avatarUri) {
+                                    try {
+                                        BitmapFactory.decodeFile(matchedProfile.avatarUri)
+                                    } catch (e: Exception) {
+                                        null
+                                    }
+                                }
+                                if (bitmap != null) {
+                                    Image(
+                                        bitmap = bitmap.asImageBitmap(),
+                                        contentDescription = null,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    Text(
+                                        text = matchedProfile.name.take(2).uppercase(),
+                                        fontSize = 24.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            } else {
+                                Text(
+                                    text = matchedProfile.name.take(2).uppercase(),
+                                    fontSize = 24.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Has coincidido con ${matchedProfile.name} para compartir fines de tipo $activeTab.",
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+            )
+        }
+
+        // 5. Modal de Creación Manual de Perfil
+        if (showCreateDialog) {
+            CreateProfileDialog(
+                onDismiss = { showCreateDialog = false },
+                onCreate = onAddProfile
+            )
         }
     }
 }
@@ -376,9 +623,7 @@ fun ProfileCard(
 ) {
     var offsetX by remember { mutableStateOf(0f) }
     var offsetY by remember { mutableStateOf(0f) }
-    val coroutineScope = rememberCoroutineScope()
 
-    // Animación suave de regreso si no se arrastra lo suficiente
     val offsetXAnimated by animateFloatAsState(
         targetValue = offsetX,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
@@ -390,13 +635,11 @@ fun ProfileCard(
         label = "offsetY"
     )
 
-    // Rotación de la tarjeta basada en el movimiento en el eje X
     val rotationZ = (offsetXAnimated / 1000f) * 45f
 
-    // Generar gradientes elegantes usando un hash del nombre del estudiante para que el avatar luzca premium y dinámico
     val nameHash = profile.name.hashCode()
     val colors = listOf(
-        Color(0xFF0056B3).copy(alpha = 0.8f),
+        Color(0xFF003554).copy(alpha = 0.85f),
         Color(nameHash or 0xFF000000.toInt()).copy(alpha = 0.9f),
         MaterialTheme.colorScheme.primary
     )
@@ -421,9 +664,9 @@ fun ProfileCard(
                                 offsetY += dragAmount.y
                             },
                             onDragEnd = {
-                                if (offsetX > 350f) {
+                                if (offsetX > 300f) {
                                     onSwipeRight()
-                                } else if (offsetX < -350f) {
+                                } else if (offsetX < -300f) {
                                     onSwipeLeft()
                                 } else {
                                     offsetX = 0f
@@ -437,7 +680,6 @@ fun ProfileCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Sección superior de Imagen / Iniciales Estilo Premium
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -445,17 +687,45 @@ fun ProfileCard(
                     .background(avatarGradient),
                 contentAlignment = Alignment.Center
             ) {
-                // Iniciales gigantes del estudiante
-                val initials = profile.name.split(" ").take(2).mapNotNull { it.firstOrNull() }.joinToString("")
-                Text(
-                    text = initials,
-                    fontSize = 72.sp,
-                    fontWeight = FontWeight.Black,
-                    color = Color.White,
-                    letterSpacing = 2.sp
-                )
+                // Dibujar foto de perfil cargada localmente si existe
+                if (profile.avatarUri != null) {
+                    val bitmap = remember(profile.avatarUri) {
+                        try {
+                            BitmapFactory.decodeFile(profile.avatarUri)
+                        } catch (e: Exception) {
+                            null
+                        }
+                    }
+                    if (bitmap != null) {
+                        Image(
+                            bitmap = bitmap.asImageBitmap(),
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        // Fallback a iniciales gigantes
+                        val initials = profile.name.split(" ").take(2).mapNotNull { it.firstOrNull() }.joinToString("")
+                        Text(
+                            text = initials,
+                            fontSize = 72.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Color.White,
+                            letterSpacing = 2.sp
+                        )
+                    }
+                } else {
+                    val initials = profile.name.split(" ").take(2).mapNotNull { it.firstOrNull() }.joinToString("")
+                    Text(
+                        text = initials,
+                        fontSize = 72.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color.White,
+                        letterSpacing = 2.sp
+                    )
+                }
 
-                // Indicador de "LIKE" o "NOPE" al arrastrar la tarjeta
+                // Indicador de "LIKE" o "NOPE" al arrastrar
                 if (offsetXAnimated > 50f) {
                     val alpha = (offsetXAnimated / 300f).coerceIn(0f, 1f)
                     Box(
@@ -495,7 +765,6 @@ fun ProfileCard(
                 }
             }
 
-            // Sección de detalles del perfil
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -504,12 +773,27 @@ fun ProfileCard(
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
                 Column {
-                    Text(
-                        text = profile.name,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = profile.name,
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (profile.isMatched) {
+                            Icon(
+                                imageVector = Icons.Default.Favorite,
+                                contentDescription = "Match",
+                                tint = Color(0xFF4CAF50),
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
                     Text(
                         text = profile.career,
                         style = MaterialTheme.typography.titleMedium,
@@ -533,8 +817,7 @@ fun ProfileCard(
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(4.dp))
-                    
-                    // LazyRow para renderizar eficientemente las etiquetas de interés
+
                     val interestList = remember(profile.interests) { profile.interests.split(",") }
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -542,7 +825,7 @@ fun ProfileCard(
                     ) {
                         items(
                             items = interestList,
-                            key = { it } // Llave obligatoria para optimización de Skipping
+                            key = { it }
                         ) { interest ->
                             SuggestionChip(
                                 onClick = {},
@@ -557,4 +840,157 @@ fun ProfileCard(
             }
         }
     }
+}
+
+@Composable
+fun CreateProfileDialog(
+    onDismiss: () -> Unit,
+    onCreate: (name: String, career: String, interests: String, bio: String, matchType: String, avatarUri: String?) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var career by remember { mutableStateOf("") }
+    var bio by remember { mutableStateOf("") }
+    var interests by remember { mutableStateOf("") }
+    var matchType by remember { mutableStateOf("Educativo") }
+    var avatarUri by remember { mutableStateOf<String?>(null) }
+
+    val context = LocalContext.current
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            val localPath = copyUriToInternalStorage(context, it)
+            avatarUri = localPath
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (name.isNotEmpty() && career.isNotEmpty()) {
+                        onCreate(name, career, interests, bio, matchType, avatarUri)
+                        onDismiss()
+                    }
+                },
+                enabled = name.isNotEmpty() && career.isNotEmpty()
+            ) {
+                Text("Crear Perfil")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar")
+            }
+        },
+        title = {
+            Text("Añadir Perfil Estudiantil", fontWeight = FontWeight.Bold)
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Avatar circular editable
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                        .clickable { imagePickerLauncher.launch("image/*") },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (avatarUri != null) {
+                        val bitmap = remember(avatarUri) {
+                            try {
+                                BitmapFactory.decodeFile(avatarUri)
+                            } catch (e: Exception) {
+                                null
+                            }
+                        }
+                        if (bitmap != null) {
+                            Image(
+                                bitmap = bitmap.asImageBitmap(),
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Icon(Icons.Default.Add, contentDescription = "Subir foto")
+                        }
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Cargar foto",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
+
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Nombre Completo") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = career,
+                    onValueChange = { career = it },
+                    label = { Text("Carrera") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = interests,
+                    onValueChange = { interests = it },
+                    label = { Text("Intereses (ej: Kotlin,UI,Git)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = bio,
+                    onValueChange = { bio = it },
+                    label = { Text("Biografía") },
+                    maxLines = 3,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Tipo de match
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        "Tipo de Conexión",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("Educativo", "Recreacional", "Sentimental").forEach { type ->
+                            FilterChip(
+                                selected = matchType == type,
+                                onClick = { matchType = type },
+                                label = { Text(type, fontSize = 11.sp) },
+                                modifier = Modifier.weight(1f),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    )
 }
