@@ -257,9 +257,19 @@ fun HomeScreenStateless(
                     .weight(1f)
                     .fillMaxWidth()
             ) {
-                if (isRefreshing) {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                } else if (isSwipeViewMode) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    if (isRefreshing) {
+                        LinearProgressIndicator(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                    ) {
+                        if (isSwipeViewMode) {
                     // MODO SWIPE CARDS
                     if (swipeCardProfiles.isEmpty()) {
                         Box(
@@ -519,6 +529,8 @@ fun HomeScreenStateless(
                 }
             }
         }
+    }
+}
 
         // 4. Modal Diálogo "¡Es un Match!"
         matchDialogProfile?.let { matchedProfile ->
