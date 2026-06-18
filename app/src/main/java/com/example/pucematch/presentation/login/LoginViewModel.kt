@@ -6,7 +6,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.lifecycle.viewModelScope
 import com.example.pucematch.data.repository.PuceMatchRepository
+import kotlinx.coroutines.launch
 
 /**
  * ViewModel para el Login.
@@ -28,7 +30,6 @@ class LoginViewModel(
 
     fun onEmailChange(input: String) {
         savedStateHandle[emailKey] = input
-        // Validar en tiempo real que pertenezca al dominio institucional de la PUCE
         savedStateHandle[emailErrorKey] = !input.endsWith("@puce.edu.ec") && input.isNotEmpty()
     }
 
@@ -36,12 +37,16 @@ class LoginViewModel(
         savedStateHandle[passwordKey] = input
     }
 
-    fun validateAndLogin(onSuccess: () -> Unit) {
+    fun validateAndLogin(onSuccess: (userId: String) -> Unit) {
         val isEmailValid = email.value.endsWith("@puce.edu.ec") && email.value.isNotEmpty()
         val isPasswordValid = password.value.isNotEmpty()
 
         if (isEmailValid && isPasswordValid) {
-            onSuccess()
+            viewModelScope.launch {
+                // Generar un ID de usuario determinista a partir del correo electrónico
+                val userId = java.util.UUID.nameUUIDFromBytes(email.value.trim().lowercase().toByteArray()).toString()
+                onSuccess(userId)
+            }
         } else {
             savedStateHandle[emailErrorKey] = !isEmailValid
         }

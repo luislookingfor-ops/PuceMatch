@@ -60,7 +60,7 @@ fun HomeScreenStateful(navController: NavController, modifier: Modifier = Modifi
     val context = LocalContext.current
     val app = context.applicationContext as PuceMatchApplication
     val viewModel: HomeViewModel = viewModel(
-        factory = HomeViewModel.provideFactory(app.repository)
+        factory = HomeViewModel.provideFactory(app.repository, app.getCurrentUserId())
     )
 
     val isSwipeViewMode by viewModel.isSwipeViewMode.collectAsState()
@@ -80,11 +80,8 @@ fun HomeScreenStateful(navController: NavController, modifier: Modifier = Modifi
         onSwipeViewModeToggle = { viewModel.setSwipeViewMode(!isSwipeViewMode) },
         onTabSelect = { viewModel.setActiveTab(it) },
         onSwipeLeft = { student -> viewModel.swipeLeft(student.id) },
-        onSwipeRight = { student -> viewModel.swipeRight(student) },
+        onSwipeRight = { student, onMatchResult -> viewModel.swipeRight(student, onMatchResult) },
         onReloadClick = { viewModel.resetSwipes() },
-        onAddProfile = { name, career, interests, bio, matchType, avatarUri ->
-            viewModel.addManualProfile(name, career, interests, bio, matchType, avatarUri)
-        },
         onNavigateToChat = { matchId ->
             navController.navigate(Screen.ChatDetail(matchId))
         },
@@ -104,13 +101,11 @@ fun HomeScreenStateless(
     onSwipeViewModeToggle: () -> Unit,
     onTabSelect: (String) -> Unit,
     onSwipeLeft: (StudentEntity) -> Unit,
-    onSwipeRight: (StudentEntity) -> Unit,
+    onSwipeRight: (StudentEntity, (Boolean, String?) -> Unit) -> Unit,
     onReloadClick: () -> Unit,
-    onAddProfile: (String, String, String, String, String, String?) -> Unit,
     onNavigateToChat: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var showCreateDialog by remember { mutableStateOf(false) }
     var matchDialogProfile by remember { mutableStateOf<StudentEntity?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -139,15 +134,6 @@ fun HomeScreenStateless(
                     containerColor = MaterialTheme.colorScheme.background
                 )
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showCreateDialog = true },
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Crear Perfil Manualmente")
-            }
         },
         modifier = modifier.fillMaxSize()
     ) { paddingValues ->
@@ -342,8 +328,11 @@ fun HomeScreenStateless(
                                                 onSwipeLeft(currentTopProfile)
                                             },
                                             onSwipeRight = {
-                                                onSwipeRight(currentTopProfile)
-                                                matchDialogProfile = currentTopProfile
+                                                onSwipeRight(currentTopProfile) { isMatch, _ ->
+                                                    if (isMatch) {
+                                                        matchDialogProfile = currentTopProfile
+                                                    }
+                                                }
                                             },
                                             onCardClick = {
                                                 // Check for match before opening chat
@@ -392,8 +381,11 @@ fun HomeScreenStateless(
                                 FilledIconButton(
                                     onClick = {
                                         if (currentTopProfile != null) {
-                                            onSwipeRight(currentTopProfile)
-                                            matchDialogProfile = currentTopProfile
+                                            onSwipeRight(currentTopProfile) { isMatch, _ ->
+                                                if (isMatch) {
+                                                    matchDialogProfile = currentTopProfile
+                                                }
+                                            }
                                         }
                                     },
                                     modifier = Modifier.size(64.dp),
@@ -614,13 +606,6 @@ fun HomeScreenStateless(
             )
         }
 
-        // 5. Modal de Creación Manual de Perfil
-        if (showCreateDialog) {
-            CreateProfileDialog(
-                onDismiss = { showCreateDialog = false },
-                onCreate = onAddProfile
-            )
-        }
     }
 }
 
@@ -852,157 +837,4 @@ fun ProfileCard(
             }
         }
     }
-}
-
-@Composable
-fun CreateProfileDialog(
-    onDismiss: () -> Unit,
-    onCreate: (name: String, career: String, interests: String, bio: String, matchType: String, avatarUri: String?) -> Unit
-) {
-    var name by remember { mutableStateOf("") }
-    var career by remember { mutableStateOf("") }
-    var bio by remember { mutableStateOf("") }
-    var interests by remember { mutableStateOf("") }
-    var matchType by remember { mutableStateOf("Educativo") }
-    var avatarUri by remember { mutableStateOf<String?>(null) }
-
-    val context = LocalContext.current
-    val imagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let {
-            val localPath = copyUriToInternalStorage(context, it)
-            avatarUri = localPath
-        }
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            Button(
-                onClick = {
-                    if (name.isNotEmpty() && career.isNotEmpty()) {
-                        onCreate(name, career, interests, bio, matchType, avatarUri)
-                        onDismiss()
-                    }
-                },
-                enabled = name.isNotEmpty() && career.isNotEmpty()
-            ) {
-                Text("Crear Perfil")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancelar")
-            }
-        },
-        title = {
-            Text("Añadir Perfil Estudiantil", fontWeight = FontWeight.Bold)
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                // Avatar circular editable
-                Box(
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                        .clickable { imagePickerLauncher.launch("image/*") },
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (avatarUri != null) {
-                        val bitmap = remember(avatarUri) {
-                            try {
-                                BitmapFactory.decodeFile(avatarUri)
-                            } catch (e: Exception) {
-                                null
-                            }
-                        }
-                        if (bitmap != null) {
-                            Image(
-                                bitmap = bitmap.asImageBitmap(),
-                                contentDescription = null,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
-                        } else {
-                            Icon(Icons.Default.Add, contentDescription = "Subir foto")
-                        }
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Cargar foto",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                }
-
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Nombre Completo") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                OutlinedTextField(
-                    value = career,
-                    onValueChange = { career = it },
-                    label = { Text("Carrera") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                OutlinedTextField(
-                    value = interests,
-                    onValueChange = { interests = it },
-                    label = { Text("Intereses (ej: Kotlin,UI,Git)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                OutlinedTextField(
-                    value = bio,
-                    onValueChange = { bio = it },
-                    label = { Text("Biografía") },
-                    maxLines = 3,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                // Tipo de match
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        "Tipo de Conexión",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        listOf("Educativo", "Recreacional", "Sentimental").forEach { type ->
-                            FilterChip(
-                                selected = matchType == type,
-                                onClick = { matchType = type },
-                                label = { Text(type, fontSize = 11.sp) },
-                                modifier = Modifier.weight(1f),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    )
 }

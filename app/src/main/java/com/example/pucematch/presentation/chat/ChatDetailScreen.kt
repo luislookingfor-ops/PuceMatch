@@ -47,7 +47,7 @@ fun ChatDetailScreenStateful(
     val context = LocalContext.current
     val app = context.applicationContext as PuceMatchApplication
     val viewModel: ChatDetailViewModel = viewModel(
-        factory = ChatDetailViewModel.provideFactory(app.repository)
+        factory = ChatDetailViewModel.provideFactory(app.repository, app.getCurrentUserId())
     )
 
     val student by viewModel.matchedStudent.collectAsState()

@@ -8,16 +8,15 @@ import kotlinx.coroutines.flow.Flow
 
 /**
  * Data Access Object para gestionar los mensajes locales.
- * Expone un Flow observable para actualizar reactivamente la pantalla de chat.
  */
 @Dao
 interface MessageDao {
 
-    @Query("SELECT * FROM messages WHERE matchId = :matchId ORDER BY localId ASC")
+    @Query("SELECT * FROM messages WHERE matchId = :matchId ORDER BY createdAt ASC")
     fun getMessagesForMatch(matchId: String): Flow<List<MessageEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertMessage(message: MessageEntity): Long
+    suspend fun insertMessage(message: MessageEntity)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMessages(messages: List<MessageEntity>)

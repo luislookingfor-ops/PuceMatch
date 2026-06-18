@@ -93,7 +93,7 @@ class RegisterViewModel(
         savedStateHandle[matchTypeKey] = type
     }
 
-    fun registerUser(onSuccess: () -> Unit) {
+    fun registerUser(onSuccess: (userId: String) -> Unit) {
         val isEmailValid = email.value.endsWith("@puce.edu.ec") && email.value.isNotEmpty()
         val semNum = semester.value.toIntOrNull()
         val isSemesterValid = semester.value.isNotEmpty() && semNum != null && semNum in 1..12
@@ -104,9 +104,9 @@ class RegisterViewModel(
 
         if (isEmailValid && isSemesterValid && isPasswordValid && isConfirmValid && isNameValid && isCareerValid) {
             viewModelScope.launch {
-                // Registrar el perfil del estudiante en la base de datos local
+                val registeredId = java.util.UUID.nameUUIDFromBytes(email.value.trim().lowercase().toByteArray()).toString()
                 val newProfile = StudentEntity(
-                    id = java.util.UUID.randomUUID().toString(),
+                    id = registeredId,
                     name = name.value,
                     career = career.value,
                     interests = "Kotlin,Android,UI/UX,Diseño,Base de Datos",
@@ -116,7 +116,7 @@ class RegisterViewModel(
                     isMatched = false
                 )
                 repository.insertProfile(newProfile)
-                onSuccess()
+                onSuccess(registeredId)
             }
         } else {
             savedStateHandle[emailErrorKey] = !isEmailValid

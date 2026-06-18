@@ -51,7 +51,8 @@ fun LoginScreenStateful(navController: NavController) {
         onEmailChange = { viewModel.onEmailChange(it) },
         onPasswordChange = { viewModel.onPasswordChange(it) },
         onLoginClick = {
-            viewModel.validateAndLogin {
+            viewModel.validateAndLogin { userId ->
+                app.saveCurrentUserId(userId)
                 navController.navigate(Screen.Home) {
                     popUpTo(Screen.Login) { inclusive = true }
                 }
