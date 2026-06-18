@@ -16,6 +16,15 @@ interface UserDao {
     @Query("SELECT * FROM profiles")
     fun getAllProfiles(): Flow<List<StudentEntity>>
 
+    @Query("SELECT * FROM profiles")
+    suspend fun getProfilesList(): List<StudentEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertProfiles(profiles: List<StudentEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertProfile(profile: StudentEntity)
+
+    @Query("UPDATE profiles SET isMatched = :isMatched WHERE id = :id")
+    suspend fun updateMatchStatus(id: String, isMatched: Boolean)
 }

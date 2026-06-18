@@ -1,52 +1,74 @@
 package com.example.pucematch.presentation.register
 
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.ui.res.painterResource
-import com.example.pucematch.R
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.pucematch.PuceMatchApplication
+import com.example.pucematch.R
 import com.example.pucematch.domain.Screen
+import com.example.pucematch.ui.utils.copyUriToInternalStorage
 
 @Composable
 fun RegisterScreenStateful(navController: NavController) {
-    // Elevación de estado (State Hoisting)
-    var name by rememberSaveable { mutableStateOf("") }
-    var email by rememberSaveable { mutableStateOf("") }
-    var semester by rememberSaveable { mutableStateOf("") }
-    var career by rememberSaveable { mutableStateOf("") }
-    var password by rememberSaveable { mutableStateOf("") }
-    var confirmPassword by rememberSaveable { mutableStateOf("") }
+    val context = LocalContext.current
+    val app = context.applicationContext as PuceMatchApplication
+    val viewModel: RegisterViewModel = viewModel(
+        factory = RegisterViewModel.provideFactory(app.repository)
+    )
 
-    // Estados de error para validaciones en tiempo real
-    var isEmailError by rememberSaveable { mutableStateOf(false) }
-    var isSemesterError by rememberSaveable { mutableStateOf(false) }
-    var isPasswordError by rememberSaveable { mutableStateOf(false) }
-    var isConfirmPasswordError by rememberSaveable { mutableStateOf(false) }
+    val name by viewModel.name.collectAsState()
+    val email by viewModel.email.collectAsState()
+    val semester by viewModel.semester.collectAsState()
+    val career by viewModel.career.collectAsState()
+    val password by viewModel.password.collectAsState()
+    val confirmPassword by viewModel.confirmPassword.collectAsState()
+    val avatarUri by viewModel.avatarUri.collectAsState()
+    val matchType by viewModel.matchType.collectAsState()
+
+    val isEmailError by viewModel.isEmailError.collectAsState()
+    val isSemesterError by viewModel.isSemesterError.collectAsState()
+    val isPasswordError by viewModel.isPasswordError.collectAsState()
+    val isConfirmPasswordError by viewModel.isConfirmPasswordError.collectAsState()
 
     RegisterScreenStateless(
         name = name,
@@ -55,58 +77,25 @@ fun RegisterScreenStateful(navController: NavController) {
         career = career,
         password = password,
         confirmPassword = confirmPassword,
+        avatarUri = avatarUri,
+        matchType = matchType,
         isEmailError = isEmailError,
         isSemesterError = isSemesterError,
         isPasswordError = isPasswordError,
         isConfirmPasswordError = isConfirmPasswordError,
-        onNameChange = { input -> name = input },
-        onEmailChange = { input ->
-            email = input
-            // Validación en tiempo real del correo institucional
-            isEmailError = !input.endsWith("@puce.edu.ec")
-        },
-        onSemesterChange = { input ->
-            semester = input
-            if (input.isEmpty()) {
-                isSemesterError = false
-            } else {
-                // Validación estricta con toIntOrNull()
-                val semNumber = input.toIntOrNull()
-                isSemesterError = semNumber == null || semNumber !in 1..12
-            }
-        },
-        onCareerChange = { input -> career = input },
-        onPasswordChange = { input ->
-            password = input
-            isPasswordError = input.length < 6
-            if (confirmPassword.isNotEmpty()) {
-                isConfirmPasswordError = input != confirmPassword
-            }
-        },
-        onConfirmPasswordChange = { input ->
-            confirmPassword = input
-            isConfirmPasswordError = password != input
-        },
+        onNameChange = { viewModel.onNameChange(it) },
+        onEmailChange = { viewModel.onEmailChange(it) },
+        onSemesterChange = { viewModel.onSemesterChange(it) },
+        onCareerChange = { viewModel.onCareerChange(it) },
+        onPasswordChange = { viewModel.onPasswordChange(it) },
+        onConfirmPasswordChange = { viewModel.onConfirmPasswordChange(it) },
+        onAvatarChange = { viewModel.onAvatarChange(it) },
+        onMatchTypeChange = { viewModel.onMatchTypeChange(it) },
         onRegisterClick = {
-            val isEmailValid = email.endsWith("@puce.edu.ec") && email.isNotEmpty()
-            val semNum = semester.toIntOrNull()
-            val isSemesterValid = semester.isNotEmpty() && semNum != null && semNum in 1..12
-            val isPasswordValid = password.isNotEmpty() && password.length >= 6
-            val isConfirmValid = password == confirmPassword
-            val isNameValid = name.isNotEmpty()
-            val isCareerValid = career.isNotEmpty()
-
-            if (isEmailValid && isSemesterValid && isPasswordValid && isConfirmValid && isNameValid && isCareerValid) {
-                // Proceder al registro y luego ir a Home
+            viewModel.registerUser {
                 navController.navigate(Screen.Home) {
                     popUpTo(Screen.Login) { inclusive = true }
                 }
-            } else {
-                // Actualizar visualización de errores si se intenta enviar incompleto
-                isEmailError = !isEmailValid
-                isSemesterError = !isSemesterValid
-                isPasswordError = !isPasswordValid
-                isConfirmPasswordError = !isConfirmValid
             }
         },
         onBackToLogin = {
@@ -115,6 +104,7 @@ fun RegisterScreenStateful(navController: NavController) {
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegisterScreenStateless(
     name: String,
@@ -123,6 +113,8 @@ fun RegisterScreenStateless(
     career: String,
     password: String,
     confirmPassword: String,
+    avatarUri: String?,
+    matchType: String,
     isEmailError: Boolean,
     isSemesterError: Boolean,
     isPasswordError: Boolean,
@@ -133,14 +125,26 @@ fun RegisterScreenStateless(
     onCareerChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
     onConfirmPasswordChange: (String) -> Unit,
+    onAvatarChange: (String?) -> Unit,
+    onMatchTypeChange: (String) -> Unit,
     onRegisterClick: () -> Unit,
     onBackToLogin: () -> Unit
 ) {
+    val context = LocalContext.current
     val focusManager = LocalFocusManager.current
-    var passwordVisible by rememberSaveable { mutableStateOf(false) }
-    var confirmPasswordVisible by rememberSaveable { mutableStateOf(false) }
+    var passwordVisible by remember { mutableStateOf(false) }
+    var confirmPasswordVisible by remember { mutableStateOf(false) }
 
-    // Brush gradiente para dar un aspecto moderno y premium
+    // Selector de imágenes nativo
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            val localPath = copyUriToInternalStorage(context, it)
+            onAvatarChange(localPath)
+        }
+    }
+
     val gradientBackground = Brush.verticalGradient(
         colors = listOf(
             MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
@@ -149,8 +153,7 @@ fun RegisterScreenStateless(
     )
 
     Scaffold(
-        modifier = Modifier
-            .fillMaxSize()
+        modifier = Modifier.fillMaxSize()
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -161,7 +164,7 @@ fun RegisterScreenStateless(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState()) // Previene que el teclado tape los inputs
+                    .verticalScroll(rememberScrollState())
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -178,7 +181,7 @@ fun RegisterScreenStateless(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
                     text = "Crear Cuenta",
@@ -194,7 +197,7 @@ fun RegisterScreenStateless(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -207,8 +210,90 @@ fun RegisterScreenStateless(
                         modifier = Modifier
                             .padding(20.dp)
                             .fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        // Selector de Foto de Perfil
+                        Text(
+                            text = "Foto de Perfil",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .size(96.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                                .clickable { imagePickerLauncher.launch("image/*") },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (avatarUri != null) {
+                                val bitmap = remember(avatarUri) {
+                                    try {
+                                        BitmapFactory.decodeFile(avatarUri)
+                                    } catch (e: Exception) {
+                                        null
+                                    }
+                                }
+                                if (bitmap != null) {
+                                    Image(
+                                        bitmap = bitmap.asImageBitmap(),
+                                        contentDescription = "Foto de perfil",
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "Subir foto",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "Subir foto",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+                        }
+
+                        // Tipo de Match de Interés (Dropdown / Chips)
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "Categoría de Conexión de Interés",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.Bold
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                listOf("Educativo", "Recreacional", "Sentimental").forEach { type ->
+                                    FilterChip(
+                                        selected = matchType == type,
+                                        onClick = { onMatchTypeChange(type) },
+                                        label = { Text(type, fontSize = 12.sp) },
+                                        modifier = Modifier.weight(1f),
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                    )
+                                }
+                            }
+                        }
+
                         // Nombre
                         OutlinedTextField(
                             value = name,

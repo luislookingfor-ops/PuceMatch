@@ -1,7 +1,9 @@
 package com.example.pucematch.presentation.chat
 
+import android.graphics.BitmapFactory
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -12,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,25 +23,20 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.pucematch.data.local.AppDatabase
+import com.example.pucematch.PuceMatchApplication
+import com.example.pucematch.data.local.MessageEntity
 import com.example.pucematch.data.local.StudentEntity
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
 import java.util.*
-
-data class Message(
-    val id: String = UUID.randomUUID().toString(),
-    val text: String,
-    val isFromMe: Boolean,
-    val timestamp: String
-)
 
 @Composable
 fun ChatDetailScreenStateful(
@@ -47,81 +45,32 @@ fun ChatDetailScreenStateful(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val database = remember { AppDatabase.getDatabase(context) }
-    val profiles by database.userDao().getAllProfiles().collectAsState(initial = emptyList())
-    val coroutineScope = rememberCoroutineScope()
-
-    // Encontrar el estudiante del match
-    val matchedStudent = remember(profiles, matchId) {
-        profiles.find { it.id == matchId } ?: StudentEntity(
-            id = matchId,
-            name = "Estudiante PUCE",
-            career = "Carrera PUCE",
-            interests = "Kotlin,Estudios",
-            bio = "Buscando compañeros de estudio en la universidad."
-        )
-    }
-
-    // Historial inicial de mensajes
-    val messages = remember {
-        mutableStateListOf(
-            Message(
-                text = "¡Hola! Vi que coincidimos en intereses.",
-                isFromMe = false,
-                timestamp = "10:15 AM"
-            ),
-            Message(
-                text = "¡Hola! Qué bien. Sí, vi tu perfil y me gustó mucho tu bio.",
-                isFromMe = true,
-                timestamp = "10:16 AM"
-            ),
-            Message(
-                text = "¡Gracias! Justamente estoy buscando a alguien para armar grupo de estudio para los proyectos de este semestre. ¿Te interesaría?",
-                isFromMe = false,
-                timestamp = "10:18 AM"
-            )
-        )
-    }
-
-    var isTyping by remember { mutableStateOf(false) }
-
-    // Respuestas automáticas simuladas para hacer la experiencia dinámica
-    val botReplies = listOf(
-        "¡Excelente! Deberíamos reunirnos en la biblioteca de la PUCE esta semana.",
-        "Genial. Precisamente estoy libre los martes y jueves por la tarde para avanzar.",
-        "Totalmente de acuerdo. PuceMatch me está pareciendo súper útil para esto.",
-        "¡Qué bien! Te paso mi número de WhatsApp por interno si gustas.",
-        "Buenísimo, nos organizamos entonces."
+    val app = context.applicationContext as PuceMatchApplication
+    val viewModel: ChatDetailViewModel = viewModel(
+        factory = ChatDetailViewModel.provideFactory(app.repository)
     )
-    var replyIndex by remember { mutableStateOf(0) }
 
-    val onSendMessage: (String) -> Unit = { text ->
-        if (text.isNotBlank()) {
-            val sdf = SimpleDateFormat("h:mm a", Locale.getDefault())
-            val currentTime = sdf.format(Date())
-            
-            // Añadir mensaje del usuario
-            messages.add(Message(text = text, isFromMe = true, timestamp = currentTime))
-            
-            // Simular respuesta asíncrona
-            coroutineScope.launch {
-                delay(800)
-                isTyping = true
-                delay(1500)
-                isTyping = false
-                val replyText = botReplies[replyIndex % botReplies.size]
-                replyIndex++
-                messages.add(Message(text = replyText, isFromMe = false, timestamp = sdf.format(Date())))
-            }
-        }
-    }
+    val student by viewModel.matchedStudent.collectAsState()
+    val messages by viewModel.messages.collectAsState()
+    val isTyping by viewModel.isTyping.collectAsState()
+    val inputText by viewModel.inputText.collectAsState()
+    val hasMatchRight by viewModel.hasMatchRight.collectAsState()
 
     ChatDetailScreenStateless(
-        student = matchedStudent,
+        student = student ?: StudentEntity(
+            id = matchId,
+            name = "Cargando...",
+            career = "...",
+            interests = "",
+            bio = ""
+        ),
         messages = messages,
         isTyping = isTyping,
+        inputText = inputText,
+        hasMatchRight = hasMatchRight,
+        onInputTextChange = { viewModel.onInputTextChange(it) },
+        onSendMessage = { viewModel.sendMessage() },
         onBackClick = { navController.popBackStack() },
-        onSendMessage = onSendMessage,
         modifier = modifier
     )
 }
@@ -130,36 +79,85 @@ fun ChatDetailScreenStateful(
 @Composable
 fun ChatDetailScreenStateless(
     student: StudentEntity,
-    messages: List<Message>,
+    messages: List<MessageEntity>,
     isTyping: Boolean,
+    inputText: String,
+    hasMatchRight: Boolean,
+    onInputTextChange: (String) -> Unit,
+    onSendMessage: () -> Unit,
     onBackClick: () -> Unit,
-    onSendMessage: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
-    val coroutineScope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
 
-    // Auto-scroll al último mensaje al enviar/recibir
+    // Auto-scroll al último mensaje
     LaunchedEffect(messages.size, isTyping) {
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size)
         }
     }
 
-    // Gradiente personalizado para la barra superior
+    // DEFENSA FINAL: Verificar si hay match mutuo activo
+    if (!hasMatchRight && student.name != "Cargando...") {
+        Scaffold(
+            topBar = {
+                CenterAlignedTopAppBar(
+                    title = { Text("Acceso Denegado") },
+                    navigationIcon = {
+                        IconButton(onClick = onBackClick) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
+                        }
+                    }
+                )
+            },
+            modifier = modifier.fillMaxSize()
+        ) { padding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = "Bloqueado",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(64.dp)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Conversación Bloqueada",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Únicamente se permite chatear con estudiantes si ambos coinciden en un Match mutuo. Vuelve a la pantalla principal y desliza hacia la derecha para iniciar la conversación.",
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Button(onClick = onBackClick) {
+                        Text("Regresar al catálogo")
+                    }
+                }
+            }
+        }
+        return
+    }
+
     val nameHash = student.name.hashCode()
-    val colors = listOf(
-        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-        MaterialTheme.colorScheme.background
-    )
-    val appbarBackground = Brush.verticalGradient(colors)
 
     Scaffold(
         topBar = {
             Surface(
-                modifier = Modifier.fillMaxWidth().shadow(4.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(4.dp),
                 color = MaterialTheme.colorScheme.surface
             ) {
                 Row(
@@ -178,9 +176,9 @@ fun ChatDetailScreenStateless(
 
                     Spacer(modifier = Modifier.width(4.dp))
 
-                    // Avatar con Gradiente e Iniciales
+                    // Avatar con Gradiente e Iniciales o Foto local
                     val avatarColors = listOf(
-                        Color(0xFF0056B3).copy(alpha = 0.8f),
+                        Color(0xFF003554).copy(alpha = 0.85f),
                         Color(nameHash or 0xFF000000.toInt()).copy(alpha = 0.9f)
                     )
                     Box(
@@ -190,13 +188,39 @@ fun ChatDetailScreenStateless(
                             .background(Brush.verticalGradient(avatarColors)),
                         contentAlignment = Alignment.Center
                     ) {
-                        val initials = student.name.split(" ").take(2).mapNotNull { it.firstOrNull() }.joinToString("")
-                        Text(
-                            text = initials,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
+                        if (student.avatarUri != null) {
+                            val bitmap = remember(student.avatarUri) {
+                                try {
+                                    BitmapFactory.decodeFile(student.avatarUri)
+                                } catch (e: Exception) {
+                                    null
+                                }
+                            }
+                            if (bitmap != null) {
+                                Image(
+                                    bitmap = bitmap.asImageBitmap(),
+                                    contentDescription = student.name,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                val initials = student.name.split(" ").take(2).mapNotNull { it.firstOrNull() }.joinToString("")
+                                Text(
+                                    text = initials,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                        } else {
+                            val initials = student.name.split(" ").take(2).mapNotNull { it.firstOrNull() }.joinToString("")
+                            Text(
+                                text = initials,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.width(12.dp))
@@ -235,7 +259,7 @@ fun ChatDetailScreenStateless(
                 ) {
                     OutlinedTextField(
                         value = inputText,
-                        onValueChange = { inputText = it },
+                        onValueChange = onInputTextChange,
                         placeholder = { Text("Escribe un mensaje...") },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(24.dp),
@@ -252,8 +276,7 @@ fun ChatDetailScreenStateless(
                     IconButton(
                         onClick = {
                             if (inputText.isNotBlank()) {
-                                onSendMessage(inputText)
-                                inputText = ""
+                                onSendMessage()
                                 focusManager.clearFocus()
                             }
                         },
@@ -307,7 +330,6 @@ fun ChatDetailScreenStateless(
                     } else {
                         MaterialTheme.colorScheme.onSecondaryContainer
                     }
-                    // Globos de texto asimétricos estilo WhatsApp / Telegram
                     val bubbleShape = if (message.isFromMe) {
                         RoundedCornerShape(
                             topStart = 16.dp,
@@ -352,7 +374,6 @@ fun ChatDetailScreenStateless(
                     }
                 }
 
-                // Animación de Escribiendo...
                 if (isTyping) {
                     item(key = "typing_indicator") {
                         Column(
@@ -382,7 +403,7 @@ fun ChatDetailScreenStateless(
 @Composable
 fun TypingIndicatorDots() {
     val infiniteTransition = rememberInfiniteTransition(label = "dots")
-    
+
     val dot1Scale by infiniteTransition.animateFloat(
         initialValue = 0.2f,
         targetValue = 1f,

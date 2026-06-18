@@ -13,5 +13,8 @@ data class StudentEntity(
     val name: String,
     val career: String,
     val interests: String, // Guardado como String delimitado por comas para la Fase 1
-    val bio: String
+    val bio: String,
+    val avatarUri: String? = null,
+    val matchType: String = "Educativo", // "Educativo", "Recreacional", "Sentimental"
+    val isMatched: Boolean = false
 )
