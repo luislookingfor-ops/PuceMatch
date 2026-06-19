@@ -44,6 +44,15 @@ fun LoginScreenStateful(navController: NavController) {
     val password by viewModel.password.collectAsState()
     val isEmailError by viewModel.isEmailError.collectAsState()
 
+    LaunchedEffect(Unit) {
+        val savedId = app.getCurrentUserId()
+        if (savedId.isNotEmpty()) {
+            navController.navigate(Screen.Home) {
+                popUpTo(Screen.Login) { inclusive = true }
+            }
+        }
+    }
+
     LoginScreenStateless(
         email = email,
         password = password,
