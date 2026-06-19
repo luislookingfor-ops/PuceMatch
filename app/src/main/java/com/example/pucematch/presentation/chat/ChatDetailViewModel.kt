@@ -28,8 +28,11 @@ class ChatDetailViewModel(
     val currentUserId: String
 ) : ViewModel() {
 
-    // Extraer matchId inyectado automáticamente por la navegación
-    val matchId: String = savedStateHandle.get<String>("matchId") ?: ""
+    // Extraer matchId inyectado automáticamente por la navegación (que representa al otro estudiante)
+    val otherUserId: String = savedStateHandle.get<String>("matchId") ?: ""
+
+    // Calcular el ID de chat unificado (ordenado alfabéticamente)
+    val combinedMatchId: String = if (currentUserId < otherUserId) "${currentUserId}_${otherUserId}" else "${otherUserId}_${currentUserId}"
 
     private val inputTextKey = "input_text"
     val inputText = savedStateHandle.getStateFlow(inputTextKey, "")
@@ -37,13 +40,13 @@ class ChatDetailViewModel(
     private val _isTyping = MutableStateFlow(false)
     val isTyping: StateFlow<Boolean> = _isTyping
 
-    // Historial de mensajes reactivo desde Room local
-    val messages: StateFlow<List<MessageEntity>> = repository.getMessages(matchId)
+    // Historial de mensajes reactivo desde Room local usando el ID combinado
+    val messages: StateFlow<List<MessageEntity>> = repository.getMessages(combinedMatchId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Perfil del otro estudiante
+    // Perfil del otro estudiante (cargado mediante el ID del otro usuario)
     val matchedStudent: StateFlow<StudentEntity?> = repository.getProfiles()
-        .map { profiles -> profiles.find { it.id == matchId } }
+        .map { profiles -> profiles.find { it.id == otherUserId } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     // Defensa: requiere match activo
@@ -51,12 +54,12 @@ class ChatDetailViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     init {
-        // Sondeo (polling) cada 3 segundos para sincronizar mensajes en tiempo real entre celulares
+        // Sondeo (polling) cada 3 segundos para sincronizar mensajes en tiempo real usando el ID combinado
         viewModelScope.launch {
             while (true) {
                 // Solo realizamos la petición si ya hay match mutuo activo
                 if (hasMatchRight.value) {
-                    repository.refreshMessages(matchId, currentUserId)
+                    repository.refreshMessages(combinedMatchId, currentUserId)
                 }
                 delay(3000)
             }
@@ -75,8 +78,8 @@ class ChatDetailViewModel(
         savedStateHandle[inputTextKey] = ""
 
         viewModelScope.launch {
-            // Guardar localmente y subir a la red usando el ID de usuario real
-            repository.sendMessage(matchId, currentUserId, content)
+            // Guardar localmente y subir a la red usando el ID unificado del chat
+            repository.sendMessage(combinedMatchId, currentUserId, content)
         }
     }
 
