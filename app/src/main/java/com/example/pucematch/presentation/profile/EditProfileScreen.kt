@@ -107,8 +107,8 @@ fun EditProfileScreenStateless(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let {
-            val localPath = copyUriToInternalStorage(context, it)
-            onAvatarChange(localPath)
+            val base64 = com.example.pucematch.ui.utils.convertUriToBase64(context, it)
+            onAvatarChange(base64)
         }
     }
 
@@ -170,11 +170,7 @@ fun EditProfileScreenStateless(
                 ) {
                     if (avatarUri != null) {
                         val bitmap = remember(avatarUri) {
-                            try {
-                                BitmapFactory.decodeFile(avatarUri)
-                            } catch (e: Exception) {
-                                null
-                            }
+                            com.example.pucematch.ui.utils.loadProfileBitmap(avatarUri)
                         }
                         if (bitmap != null) {
                             Image(

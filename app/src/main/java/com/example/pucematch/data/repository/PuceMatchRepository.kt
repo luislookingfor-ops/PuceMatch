@@ -87,7 +87,7 @@ class PuceMatchRepository(
                     if (local != null) {
                         remote.copy(
                             isMatched = local.isMatched,
-                            avatarUri = local.avatarUri ?: remote.avatarUri
+                            avatarUri = if (!remote.avatarUri.isNullOrEmpty()) remote.avatarUri else local.avatarUri
                         )
                     } else {
                         remote
@@ -155,7 +155,13 @@ class PuceMatchRepository(
 
         // 2. Intento de sincronización con Retrofit
         try {
-            val request = MessageRequest(matchId = matchId, senderId = senderId, content = content)
+            val request = MessageRequest(
+                id = messageId,
+                matchId = matchId,
+                senderId = senderId,
+                content = content,
+                timestamp = currentTime
+            )
             val response = api.sendMessage(request)
             if (response.isSuccessful) {
                 Result.success(Unit)

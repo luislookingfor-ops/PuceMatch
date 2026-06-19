@@ -213,32 +213,36 @@ app.get('/api/v1/matches/chat/:matchId', async (req, res) => {
 
 // 5. POST /api/v1/matches/chat: Enviar un mensaje de chat
 app.post('/api/v1/matches/chat', async (req, res) => {
-  const { matchId, senderId, content } = req.body;
+  const { id, matchId, senderId, content, timestamp } = req.body;
 
   if (!matchId || !senderId || !content) {
     return res.status(400).json({ error: 'Faltan campos obligatorios: matchId, senderId o content.' });
   }
 
-  // Formatear timestamp como "h:mm a" (ej. "8:30 PM")
+  // Formatear timestamp como "h:mm a" si no se provee
   const options = { hour: 'numeric', minute: 'numeric', hour12: true };
-  const formattedTime = new Date().toLocaleTimeString('en-US', options);
-  const msgId = crypto.randomUUID();
+  const formattedTime = timestamp || new Date().toLocaleTimeString('en-US', options);
+  const msgId = id || crypto.randomUUID();
 
   try {
     if (isPostgres) {
       await pool.query(`
         INSERT INTO messages (id, "matchId", "senderId", content, timestamp)
         VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (id) DO NOTHING
       `, [msgId, matchId, senderId, content, formattedTime]);
       res.status(200).send();
     } else {
-      memoryMessages.push({
-        id: msgId,
-        matchId,
-        senderId,
-        content,
-        timestamp: formattedTime
-      });
+      // In-Memory: evitar duplicar si ya existe
+      if (!memoryMessages.some(m => m.id === msgId)) {
+        memoryMessages.push({
+          id: msgId,
+          matchId,
+          senderId,
+          content,
+          timestamp: formattedTime
+        });
+      }
       res.status(200).send();
     }
   } catch (err) {

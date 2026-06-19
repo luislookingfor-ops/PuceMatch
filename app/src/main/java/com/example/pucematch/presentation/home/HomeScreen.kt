@@ -217,11 +217,7 @@ fun HomeScreenStateless(
                                 ) {
                                     if (match.avatarUri != null) {
                                         val bitmap = remember(match.avatarUri) {
-                                            try {
-                                                BitmapFactory.decodeFile(match.avatarUri)
-                                            } catch (e: Exception) {
-                                                null
-                                            }
+                                            com.example.pucematch.ui.utils.loadProfileBitmap(match.avatarUri)
                                         }
                                         if (bitmap != null) {
                                             Image(
@@ -474,11 +470,7 @@ fun HomeScreenStateless(
                                     ) {
                                         if (profile.avatarUri != null) {
                                             val bitmap = remember(profile.avatarUri) {
-                                                try {
-                                                    BitmapFactory.decodeFile(profile.avatarUri)
-                                                } catch (e: Exception) {
-                                                    null
-                                                }
+                                                com.example.pucematch.ui.utils.loadProfileBitmap(profile.avatarUri)
                                             }
                                             if (bitmap != null) {
                                                 Image(
@@ -592,11 +584,7 @@ fun HomeScreenStateless(
                         ) {
                             if (matchedProfile.avatarUri != null) {
                                 val bitmap = remember(matchedProfile.avatarUri) {
-                                    try {
-                                        BitmapFactory.decodeFile(matchedProfile.avatarUri)
-                                    } catch (e: Exception) {
-                                        null
-                                    }
+                                    com.example.pucematch.ui.utils.loadProfileBitmap(matchedProfile.avatarUri)
                                 }
                                 if (bitmap != null) {
                                     Image(
@@ -712,11 +700,7 @@ fun ProfileCard(
                 // Dibujar foto de perfil cargada localmente si existe
                 if (profile.avatarUri != null) {
                     val bitmap = remember(profile.avatarUri) {
-                        try {
-                            BitmapFactory.decodeFile(profile.avatarUri)
-                        } catch (e: Exception) {
-                            null
-                        }
+                        com.example.pucematch.ui.utils.loadProfileBitmap(profile.avatarUri)
                     }
                     if (bitmap != null) {
                         Image(

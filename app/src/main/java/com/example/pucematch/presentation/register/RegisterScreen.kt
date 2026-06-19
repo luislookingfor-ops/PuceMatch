@@ -141,8 +141,8 @@ fun RegisterScreenStateless(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let {
-            val localPath = copyUriToInternalStorage(context, it)
-            onAvatarChange(localPath)
+            val base64 = com.example.pucematch.ui.utils.convertUriToBase64(context, it)
+            onAvatarChange(base64)
         }
     }
 
@@ -231,14 +231,10 @@ fun RegisterScreenStateless(
                                 .clickable { imagePickerLauncher.launch("image/*") },
                             contentAlignment = Alignment.Center
                         ) {
-                            if (avatarUri != null) {
-                                val bitmap = remember(avatarUri) {
-                                    try {
-                                        BitmapFactory.decodeFile(avatarUri)
-                                    } catch (e: Exception) {
-                                        null
-                                    }
-                                }
+                             if (avatarUri != null) {
+                                 val bitmap = remember(avatarUri) {
+                                     com.example.pucematch.ui.utils.loadProfileBitmap(avatarUri)
+                                 }
                                 if (bitmap != null) {
                                     Image(
                                         bitmap = bitmap.asImageBitmap(),
