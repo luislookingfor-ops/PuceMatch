@@ -15,14 +15,14 @@ import retrofit2.converter.gson.GsonConverterFactory
  * - true: Servidor virtual en memoria local (MockInterceptor).
  * - false: Conexión real a un backend de producción/desarrollo (Retrofit real).
  */
-const val USE_MOCK_API = true
+const val USE_MOCK_API = false
 
 /**
  * URL base del servidor remoto.
  * - Si pruebas en emulador con servidor local: use "http://10.0.2.2:8080/"
  * - Si pruebas con servidor en red local o celular real: use la IP de tu PC "http://192.168.1.XX:8080/"
  */
-const val BASE_URL = "http://10.0.2.2:8080/"
+const val BASE_URL = "https://pucematch-backend.onrender.com/"
 
 class PuceMatchApplication : Application() {
 
