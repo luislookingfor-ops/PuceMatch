@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -89,6 +90,12 @@ fun HomeScreenStateful(navController: NavController, modifier: Modifier = Modifi
         onNavigateToEditProfile = {
             navController.navigate(Screen.EditProfile)
         },
+        onLogout = {
+            app.saveCurrentUserId("")
+            navController.navigate(Screen.Login) {
+                popUpTo(0) { inclusive = true }
+            }
+        },
         modifier = modifier
     )
 }
@@ -109,6 +116,7 @@ fun HomeScreenStateless(
     onReloadClick: () -> Unit,
     onNavigateToChat: (String) -> Unit,
     onNavigateToEditProfile: () -> Unit,
+    onLogout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var matchDialogProfile by remember { mutableStateOf<StudentEntity?>(null) }
@@ -138,6 +146,12 @@ fun HomeScreenStateless(
                         Icon(
                             imageVector = if (isSwipeViewMode) Icons.AutoMirrored.Filled.List else Icons.Default.Favorite,
                             contentDescription = if (isSwipeViewMode) "Modo Lista" else "Modo Carrusel/Swipe"
+                        )
+                    }
+                    IconButton(onClick = onLogout) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ExitToApp,
+                            contentDescription = "Cerrar Sesión"
                         )
                     }
                 },

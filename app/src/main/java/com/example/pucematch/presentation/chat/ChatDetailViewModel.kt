@@ -54,14 +54,14 @@ class ChatDetailViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     init {
-        // Sondeo (polling) cada 3 segundos para sincronizar mensajes en tiempo real usando el ID combinado
+        // Sondeo (polling) cada 1 segundo para sincronizar mensajes en tiempo real usando el ID combinado
         viewModelScope.launch {
             while (true) {
                 // Solo realizamos la petición si ya hay match mutuo activo
                 if (hasMatchRight.value) {
                     repository.refreshMessages(combinedMatchId, currentUserId)
                 }
-                delay(3000)
+                delay(1000)
             }
         }
     }

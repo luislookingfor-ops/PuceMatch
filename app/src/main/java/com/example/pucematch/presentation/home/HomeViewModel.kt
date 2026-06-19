@@ -63,10 +63,10 @@ class HomeViewModel(
         // Carga inicial con indicador visual
         refreshCatalog()
 
-        // Sondeo periódico silencioso en segundo plano (cada 5 segundos) para sincronizar perfiles de otros celulares
+        // Sondeo periódico silencioso en segundo plano (cada 2 segundos) para sincronizar perfiles de otros celulares
         viewModelScope.launch {
             while (true) {
-                delay(5000)
+                delay(2000)
                 repository.refreshProfiles()
             }
         }
