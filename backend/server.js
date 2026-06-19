@@ -106,8 +106,8 @@ app.post('/api/v1/students', async (req, res) => {
           career = EXCLUDED.career,
           interests = EXCLUDED.interests,
           bio = EXCLUDED.bio,
-          "avatarUri" = EXCLUDED.avatarUri,
-          "matchType" = EXCLUDED.matchType
+          "avatarUri" = EXCLUDED."avatarUri",
+          "matchType" = EXCLUDED."matchType"
       `, [id, name, career, interests || '', bio || '', avatarUri || null, matchType || 'Educativo', isMatched || false]);
       res.status(200).send();
     } else {
