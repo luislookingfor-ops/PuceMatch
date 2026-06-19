@@ -80,10 +80,12 @@ class MockInterceptor : Interceptor {
                         if (likerId < likedId) "${likerId}_${likedId}" else "${likedId}_${likerId}"
                     } else null
 
-                    // Simular que si hacemos match, actualizamos el flag isMatched local en memoria
+                    // Simular que si hacemos match, actualizamos el flag isMatched local en memoria para ambos estudiantes
                     if (isMatch) {
                         registeredStudents.replaceAll { student ->
-                            if (student.id == likedId) student.copy(isMatched = true) else student
+                            if (student.id == likedId || student.id == likerId) {
+                                student.copy(isMatched = true)
+                            } else student
                         }
                     }
 
