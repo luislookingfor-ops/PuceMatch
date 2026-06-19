@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -85,6 +86,9 @@ fun HomeScreenStateful(navController: NavController, modifier: Modifier = Modifi
         onNavigateToChat = { matchId ->
             navController.navigate(Screen.ChatDetail(matchId))
         },
+        onNavigateToEditProfile = {
+            navController.navigate(Screen.EditProfile)
+        },
         modifier = modifier
     )
 }
@@ -104,6 +108,7 @@ fun HomeScreenStateless(
     onSwipeRight: (StudentEntity, (Boolean, String?) -> Unit) -> Unit,
     onReloadClick: () -> Unit,
     onNavigateToChat: (String) -> Unit,
+    onNavigateToEditProfile: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var matchDialogProfile by remember { mutableStateOf<StudentEntity?>(null) }
@@ -123,6 +128,12 @@ fun HomeScreenStateless(
                     )
                 },
                 actions = {
+                    IconButton(onClick = onNavigateToEditProfile) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Editar Perfil"
+                        )
+                    }
                     IconButton(onClick = onSwipeViewModeToggle) {
                         Icon(
                             imageVector = if (isSwipeViewMode) Icons.AutoMirrored.Filled.List else Icons.Default.Favorite,
