@@ -24,4 +24,8 @@ sealed interface Screen {
     /** Detalle de chat con un match específico. */
     @Serializable
     data class ChatDetail(val matchId: String) : Screen
+
+    /** Pantalla para editar el propio perfil del usuario autenticado. */
+    @Serializable
+    object EditProfile : Screen
 }

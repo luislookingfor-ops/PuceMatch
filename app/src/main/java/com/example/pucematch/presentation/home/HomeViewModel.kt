@@ -9,6 +9,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.lifecycle.viewModelScope
 import com.example.pucematch.data.local.StudentEntity
 import com.example.pucematch.data.repository.PuceMatchRepository
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -59,7 +60,16 @@ class HomeViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
+        // Carga inicial con indicador visual
         refreshCatalog()
+
+        // Sondeo periódico silencioso en segundo plano (cada 5 segundos) para sincronizar perfiles de otros celulares
+        viewModelScope.launch {
+            while (true) {
+                delay(5000)
+                repository.refreshProfiles()
+            }
+        }
     }
 
     fun refreshCatalog() {
@@ -110,6 +120,7 @@ class HomeViewModel(
 
     fun resetSwipes() {
         savedStateHandle[swipedProfileIdsKey] = emptyList<String>()
+        refreshCatalog()
     }
 
     companion object {

@@ -14,6 +14,7 @@ import com.example.pucematch.domain.Screen
 import com.example.pucematch.presentation.chat.ChatDetailScreenStateful
 import com.example.pucematch.presentation.home.HomeScreenStateful
 import com.example.pucematch.presentation.login.LoginScreenStateful
+import com.example.pucematch.presentation.profile.EditProfileScreenStateful
 import com.example.pucematch.presentation.register.RegisterScreenStateful
 import com.example.pucematch.ui.theme.PuceMatchTheme
 
@@ -46,6 +47,10 @@ class MainActivity : ComponentActivity() {
 
                     composable<Screen.Home> {
                         HomeScreenStateful(navController = navController)
+                    }
+
+                    composable<Screen.EditProfile> {
+                        EditProfileScreenStateful(navController = navController)
                     }
 
                     composable<Screen.ChatDetail> { backStackEntry ->
