@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: pucematch-backend
+    env: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: pucematch-db
+          property: connectionString
+
+databases:
+  - name: pucematch-db
+    plan: free
