@@ -94,14 +94,14 @@ class PuceMatchRepository(
                             else -> null
                         }
                         remote.copy(
-                            isMatched = local.isMatched,
+                            isMatched = remote.isMatched || local.isMatched,
                             avatarUri = resolvedAvatar
                         )
                     } else {
                         remote
                     }
                 }
-                userDao.insertProfiles(mergedProfiles)
+                userDao.clearAndInsert(mergedProfiles)
                 Result.success(Unit)
             } else {
                 Result.failure(Exception("Error en la llamada de red: ${response.code()}"))

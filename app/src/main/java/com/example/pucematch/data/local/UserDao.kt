@@ -27,4 +27,13 @@ interface UserDao {
 
     @Query("UPDATE profiles SET isMatched = :isMatched WHERE id = :id")
     suspend fun updateMatchStatus(id: String, isMatched: Boolean)
+
+    @Query("DELETE FROM profiles")
+    suspend fun deleteAllProfiles()
+
+    @androidx.room.Transaction
+    suspend fun clearAndInsert(profiles: List<StudentEntity>) {
+        deleteAllProfiles()
+        insertProfiles(profiles)
+    }
 }

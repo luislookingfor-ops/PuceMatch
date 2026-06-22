@@ -9,7 +9,7 @@ import androidx.room.RoomDatabase
  * Base de datos Room de PuceMatch.
  * Singleton thread-safe que provee acceso al UserDao.
  */
-@Database(entities = [StudentEntity::class, MessageEntity::class], version = 4, exportSchema = false)
+@Database(entities = [StudentEntity::class, MessageEntity::class], version = 5, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun userDao(): UserDao
