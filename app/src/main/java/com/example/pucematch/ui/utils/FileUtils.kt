@@ -42,8 +42,9 @@ fun convertUriToBase64(context: Context, uri: Uri): String? {
         val inputStream = context.contentResolver.openInputStream(uri) ?: return null
         val originalBitmap = BitmapFactory.decodeStream(inputStream) ?: return null
         
-        // Redimensionar para optimizar peso (máximo 300px en el lado más largo)
-        val maxDimension = 300
+        // Redimensionar para optimizar peso (máximo 200px en el lado más largo)
+        // Un tamaño más pequeño asegura que el Base64 quepa en las peticiones HTTP del backend
+        val maxDimension = 200
         val width = originalBitmap.width
         val height = originalBitmap.height
         val scaledBitmap = if (width > maxDimension || height > maxDimension) {
@@ -63,8 +64,8 @@ fun convertUriToBase64(context: Context, uri: Uri): String? {
         }
 
         val outputStream = ByteArrayOutputStream()
-        // Comprimir a JPEG con calidad 75%
-        scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 75, outputStream)
+        // Comprimir a JPEG con calidad 60% para minimizar el tamaño del Base64
+        scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 60, outputStream)
         val byteArray = outputStream.toByteArray()
         
         // Retornar en formato data URI Base64

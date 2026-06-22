@@ -73,6 +73,7 @@ class PuceMatchRepository(
 
     /**
      * Sincroniza el catálogo local con la red, preservando las modificaciones locales (como matches y avatares).
+     * El avatarUri local siempre tiene prioridad para asegurar que las fotos de perfil no se pierdan.
      */
     suspend fun refreshProfiles(): Result<Unit> = withContext(Dispatchers.IO) {
         try {
@@ -85,9 +86,16 @@ class PuceMatchRepository(
                 val mergedProfiles = remoteProfiles.map { remote ->
                     val local = localMap[remote.id]
                     if (local != null) {
+                        // Preservar siempre el avatarUri local si el remoto no lo tiene
+                        // Esto garantiza que las fotos subidas no se pierdan al sincronizar
+                        val resolvedAvatar = when {
+                            !remote.avatarUri.isNullOrEmpty() -> remote.avatarUri
+                            !local.avatarUri.isNullOrEmpty() -> local.avatarUri
+                            else -> null
+                        }
                         remote.copy(
                             isMatched = local.isMatched,
-                            avatarUri = if (!remote.avatarUri.isNullOrEmpty()) remote.avatarUri else local.avatarUri
+                            avatarUri = resolvedAvatar
                         )
                     } else {
                         remote

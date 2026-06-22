@@ -1,11 +1,8 @@
 package com.example.pucematch.presentation.profile
 
-import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia
+import androidx.activity.result.contract.ActivityResultContracts.GetContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -41,7 +38,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.pucematch.PuceMatchApplication
-import com.example.pucematch.ui.utils.copyUriToInternalStorage
 
 @Composable
 fun EditProfileScreenStateful(navController: NavController) {
@@ -105,8 +101,9 @@ fun EditProfileScreenStateless(
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
 
+    // Abre directamente la galería del dispositivo para elegir una foto
     val imagePickerLauncher = rememberLauncherForActivityResult(
-        contract = PickVisualMedia()
+        contract = GetContent()
     ) { uri: Uri? ->
         uri?.let {
             val base64 = com.example.pucematch.ui.utils.convertUriToBase64(context, it)
@@ -168,9 +165,8 @@ fun EditProfileScreenStateless(
                         .background(MaterialTheme.colorScheme.surfaceVariant)
                         .border(3.dp, MaterialTheme.colorScheme.primary, CircleShape)
                         .clickable {
-                            imagePickerLauncher.launch(
-                                PickVisualMediaRequest(PickVisualMedia.ImageOnly)
-                            )
+                            // Abrir la galería del dispositivo para seleccionar foto
+                            imagePickerLauncher.launch("image/*")
                         },
                     contentAlignment = Alignment.Center
                 ) {
