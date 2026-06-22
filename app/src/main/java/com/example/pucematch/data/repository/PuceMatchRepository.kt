@@ -73,6 +73,7 @@ class PuceMatchRepository(
 
     /**
      * Sincroniza el catálogo local con la red, preservando las modificaciones locales (como matches y avatares).
+     * El avatarUri local siempre tiene prioridad para asegurar que las fotos de perfil no se pierdan.
      */
     suspend fun refreshProfiles(): Result<Unit> = withContext(Dispatchers.IO) {
         try {
@@ -85,9 +86,16 @@ class PuceMatchRepository(
                 val mergedProfiles = remoteProfiles.map { remote ->
                     val local = localMap[remote.id]
                     if (local != null) {
+                        // Preservar siempre el avatarUri local si el remoto no lo tiene
+                        // Esto garantiza que las fotos subidas no se pierdan al sincronizar
+                        val resolvedAvatar = when {
+                            !remote.avatarUri.isNullOrEmpty() -> remote.avatarUri
+                            !local.avatarUri.isNullOrEmpty() -> local.avatarUri
+                            else -> null
+                        }
                         remote.copy(
                             isMatched = local.isMatched,
-                            avatarUri = local.avatarUri ?: remote.avatarUri
+                            avatarUri = resolvedAvatar
                         )
                     } else {
                         remote
@@ -122,7 +130,8 @@ class PuceMatchRepository(
                         matchId = remote.matchId,
                         text = remote.content,
                         isFromMe = remote.senderId == currentUserId,
-                        timestamp = remote.timestamp
+                        timestamp = remote.timestamp,
+                        createdAt = remote.createdAt
                     )
                 }
                 messageDao.insertMessages(localEntities)
@@ -142,6 +151,7 @@ class PuceMatchRepository(
         val sdf = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault())
         val currentTime = sdf.format(java.util.Date())
         val messageId = java.util.UUID.randomUUID().toString()
+        val creationTime = System.currentTimeMillis()
 
         // 1. Guardado local inmediato en Room (actualiza la UI reactivamente)
         val localMessage = MessageEntity(
@@ -149,13 +159,21 @@ class PuceMatchRepository(
             matchId = matchId,
             text = content,
             isFromMe = true,
-            timestamp = currentTime
+            timestamp = currentTime,
+            createdAt = creationTime
         )
         messageDao.insertMessage(localMessage)
 
         // 2. Intento de sincronización con Retrofit
         try {
-            val request = MessageRequest(matchId = matchId, senderId = senderId, content = content)
+            val request = MessageRequest(
+                id = messageId,
+                matchId = matchId,
+                senderId = senderId,
+                content = content,
+                timestamp = currentTime,
+                createdAt = creationTime
+            )
             val response = api.sendMessage(request)
             if (response.isSuccessful) {
                 Result.success(Unit)

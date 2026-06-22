@@ -190,11 +190,7 @@ fun ChatDetailScreenStateless(
                     ) {
                         if (student.avatarUri != null) {
                             val bitmap = remember(student.avatarUri) {
-                                try {
-                                    BitmapFactory.decodeFile(student.avatarUri)
-                                } catch (e: Exception) {
-                                    null
-                                }
+                                com.example.pucematch.ui.utils.loadProfileBitmap(student.avatarUri)
                             }
                             if (bitmap != null) {
                                 Image(

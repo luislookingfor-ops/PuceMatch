@@ -8,7 +8,8 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // --- CONFIGURACIÓN DE BASE DE DATOS ---
 const isPostgres = !!process.env.DATABASE_URL;
@@ -58,8 +59,14 @@ if (isPostgres) {
           "matchId" VARCHAR(255) NOT NULL,
           "senderId" VARCHAR(255) NOT NULL,
           content TEXT NOT NULL,
-          timestamp VARCHAR(50) NOT NULL
+          timestamp VARCHAR(50) NOT NULL,
+          "createdAt" BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000)
         );
+      `);
+      
+      // Asegurar migración para instalaciones previas agregando la columna si no existe
+      await pool.query(`
+        ALTER TABLE messages ADD COLUMN IF NOT EXISTS "createdAt" BIGINT DEFAULT round(extract(epoch from now()) * 1000);
       `);
       console.log("Tablas de base de datos PostgreSQL inicializadas con éxito.");
     } catch (err) {
@@ -198,11 +205,12 @@ app.get('/api/v1/matches/chat/:matchId', async (req, res) => {
   try {
     if (isPostgres) {
       const result = await pool.query(`
-        SELECT * FROM messages WHERE "matchId" = $1 ORDER BY id ASC
+        SELECT * FROM messages WHERE "matchId" = $1 ORDER BY "createdAt" ASC, id ASC
       `, [matchId]);
       res.json(result.rows);
     } else {
       const chatMessages = memoryMessages.filter(m => m.matchId === matchId);
+      chatMessages.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
       res.json(chatMessages);
     }
   } catch (err) {
@@ -213,32 +221,38 @@ app.get('/api/v1/matches/chat/:matchId', async (req, res) => {
 
 // 5. POST /api/v1/matches/chat: Enviar un mensaje de chat
 app.post('/api/v1/matches/chat', async (req, res) => {
-  const { matchId, senderId, content } = req.body;
+  const { id, matchId, senderId, content, timestamp, createdAt } = req.body;
 
   if (!matchId || !senderId || !content) {
     return res.status(400).json({ error: 'Faltan campos obligatorios: matchId, senderId o content.' });
   }
 
-  // Formatear timestamp como "h:mm a" (ej. "8:30 PM")
+  // Formatear timestamp como "h:mm a" si no se provee
   const options = { hour: 'numeric', minute: 'numeric', hour12: true };
-  const formattedTime = new Date().toLocaleTimeString('en-US', options);
-  const msgId = crypto.randomUUID();
+  const formattedTime = timestamp || new Date().toLocaleTimeString('en-US', options);
+  const msgId = id || crypto.randomUUID();
+  const created = createdAt ? parseInt(createdAt, 10) : Date.now();
 
   try {
     if (isPostgres) {
       await pool.query(`
-        INSERT INTO messages (id, "matchId", "senderId", content, timestamp)
-        VALUES ($1, $2, $3, $4, $5)
-      `, [msgId, matchId, senderId, content, formattedTime]);
+        INSERT INTO messages (id, "matchId", "senderId", content, timestamp, "createdAt")
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (id) DO NOTHING
+      `, [msgId, matchId, senderId, content, formattedTime, created]);
       res.status(200).send();
     } else {
-      memoryMessages.push({
-        id: msgId,
-        matchId,
-        senderId,
-        content,
-        timestamp: formattedTime
-      });
+      // In-Memory: evitar duplicar si ya existe
+      if (!memoryMessages.some(m => m.id === msgId)) {
+        memoryMessages.push({
+          id: msgId,
+          matchId,
+          senderId,
+          content,
+          timestamp: formattedTime,
+          createdAt: created
+        });
+      }
       res.status(200).send();
     }
   } catch (err) {
