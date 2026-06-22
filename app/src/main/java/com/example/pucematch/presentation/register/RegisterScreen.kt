@@ -3,7 +3,9 @@ package com.example.pucematch.presentation.register
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -138,7 +140,7 @@ fun RegisterScreenStateless(
 
     // Selector de imágenes nativo
     val imagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        contract = PickVisualMedia()
     ) { uri: Uri? ->
         uri?.let {
             val base64 = com.example.pucematch.ui.utils.convertUriToBase64(context, it)
@@ -228,7 +230,11 @@ fun RegisterScreenStateless(
                                 .clip(CircleShape)
                                 .background(MaterialTheme.colorScheme.surfaceVariant)
                                 .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                                .clickable { imagePickerLauncher.launch("image/*") },
+                                .clickable {
+                                    imagePickerLauncher.launch(
+                                        PickVisualMediaRequest(PickVisualMedia.ImageOnly)
+                                    )
+                                },
                             contentAlignment = Alignment.Center
                         ) {
                              if (avatarUri != null) {
