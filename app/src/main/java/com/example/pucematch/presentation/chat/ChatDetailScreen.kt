@@ -360,7 +360,11 @@ fun ChatDetailScreenStateless(
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = message.timestamp,
+                                    text = if (message.createdAt > 0) {
+                                        formatEpochToGuayaquilTime(message.createdAt)
+                                    } else {
+                                        message.timestamp
+                                    },
                                     color = bubbleContentColor.copy(alpha = 0.6f),
                                     fontSize = 10.sp,
                                     modifier = Modifier.align(Alignment.End)
@@ -438,4 +442,12 @@ fun TypingIndicatorDots() {
         Box(modifier = Modifier.size(6.dp * dot2Scale).background(dotColor, CircleShape))
         Box(modifier = Modifier.size(6.dp * dot3Scale).background(dotColor, CircleShape))
     }
+}
+
+private fun formatEpochToGuayaquilTime(epochMillis: Long): String {
+    if (epochMillis <= 0) return ""
+    val date = java.util.Date(epochMillis)
+    val sdf = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault())
+    sdf.timeZone = java.util.TimeZone.getTimeZone("America/Guayaquil")
+    return sdf.format(date)
 }
