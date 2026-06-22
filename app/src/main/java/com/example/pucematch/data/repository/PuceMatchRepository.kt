@@ -122,7 +122,8 @@ class PuceMatchRepository(
                         matchId = remote.matchId,
                         text = remote.content,
                         isFromMe = remote.senderId == currentUserId,
-                        timestamp = remote.timestamp
+                        timestamp = remote.timestamp,
+                        createdAt = remote.createdAt
                     )
                 }
                 messageDao.insertMessages(localEntities)
@@ -142,6 +143,7 @@ class PuceMatchRepository(
         val sdf = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault())
         val currentTime = sdf.format(java.util.Date())
         val messageId = java.util.UUID.randomUUID().toString()
+        val creationTime = System.currentTimeMillis()
 
         // 1. Guardado local inmediato en Room (actualiza la UI reactivamente)
         val localMessage = MessageEntity(
@@ -149,7 +151,8 @@ class PuceMatchRepository(
             matchId = matchId,
             text = content,
             isFromMe = true,
-            timestamp = currentTime
+            timestamp = currentTime,
+            createdAt = creationTime
         )
         messageDao.insertMessage(localMessage)
 
@@ -160,7 +163,8 @@ class PuceMatchRepository(
                 matchId = matchId,
                 senderId = senderId,
                 content = content,
-                timestamp = currentTime
+                timestamp = currentTime,
+                createdAt = creationTime
             )
             val response = api.sendMessage(request)
             if (response.isSuccessful) {

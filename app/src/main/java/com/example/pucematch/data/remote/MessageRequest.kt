@@ -8,5 +8,6 @@ data class MessageRequest(
     val matchId: String,
     val senderId: String,
     val content: String,
-    val timestamp: String
+    val timestamp: String,
+    val createdAt: Long
 )

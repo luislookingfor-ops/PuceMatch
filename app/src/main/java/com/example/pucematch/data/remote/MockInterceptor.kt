@@ -117,7 +117,8 @@ class MockInterceptor : Interceptor {
                         matchId = messageReq.matchId,
                         senderId = messageReq.senderId,
                         content = messageReq.content,
-                        timestamp = sdf.format(Date())
+                        timestamp = sdf.format(Date()),
+                        createdAt = messageReq.createdAt
                     )
                     messages.add(newMessage)
                     responseString = "{}"
